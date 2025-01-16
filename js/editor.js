@@ -1,6 +1,7 @@
 import { room } from './room.js';
 import { Selection } from './selection.js';
 import { Gallery } from './gallery.js';
+import { showNotification } from './notifications.js';
 
 export const Editor = {
   currentImage: null,
@@ -44,16 +45,16 @@ export const Editor = {
     const suffixSelect = document.getElementById('suffixPrompt');
     const fullPrompt = `${prefixSelect.value}${promptInput.value.trim()}${suffixSelect.value}`;
 
+    if (!promptInput.value.trim()) {
+      showNotification('Please enter a prompt', 'error');
+      return;
+    }
+
     const imageContainer = document.getElementById('imageContainer');
     const loadingSpinner = document.getElementById('loadingSpinner');
     const placeholderText = document.getElementById('placeholderText');
     const saveButton = document.getElementById('saveButton');
     const addGalleryButton = document.getElementById('addGalleryButton');
-
-    if (!promptInput.value.trim()) {
-      alert('Please enter a prompt!');
-      return;
-    }
 
     loadingSpinner.style.display = 'block';
     placeholderText.style.display = 'none';
@@ -102,7 +103,7 @@ export const Editor = {
           
         } catch (error) {
           console.error('Error processing generated image:', error);
-          alert('Failed to process generated image. Please try again.');
+          showNotification('Failed to process generated image. Please try again.', 'error');
         }
       }
     };
@@ -147,7 +148,7 @@ export const Editor = {
     
     const prompt = document.getElementById('selectionPromptInput').value.trim();
     if (!prompt) {
-      alert('Please enter a prompt for the selected region');
+      showNotification('Please enter a prompt for the selected region', 'error');
       return;
     }
 
@@ -248,11 +249,11 @@ export const Editor = {
       this.currentImage.src = imageUrl;
       this.currentImage.dataset.galleryId = galleryEntry.id;
       
-      alert('Image successfully added to gallery!');
+      showNotification('Image successfully added to gallery!', 'success');
       
     } catch (error) {
       console.error('Error adding to gallery:', error);
-      alert('Failed to add image to gallery. Please try again.');
+      showNotification('Failed to add image to gallery. Please try again.', 'error');
     }
   },
 

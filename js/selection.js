@@ -1,5 +1,6 @@
 import { Editor } from './editor.js';
 import { room } from './room.js';
+import { showNotification } from './notifications.js';
 
 export const Selection = {
   current: null,
@@ -171,8 +172,16 @@ export const Selection = {
   },
 
   fillWithImage(prompt) {
-    if (!this.current || !Editor.currentImage) return;
+    if (!this.current || !Editor.currentImage) {
+      showNotification('Please make a selection first', 'error');
+      return;
+    }
     
+    if (!prompt) {
+      showNotification('Please enter a prompt for the selected region', 'error');
+      return;
+    }
+
     const prefixSelect = document.getElementById('prefixPrompt');
     const suffixSelect = document.getElementById('suffixPrompt');
     const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
@@ -300,7 +309,7 @@ export const Selection = {
           
         } catch (error) {
           console.error('Error saving selection fill:', error);
-          alert('Failed to save selection fill. Please try again.');
+          showNotification('Failed to save selection fill. Please try again.', 'error');
         }
       }
       

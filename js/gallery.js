@@ -1,5 +1,6 @@
 import { room } from './room.js';
 import { Editor } from './editor.js';
+import { showNotification } from './notifications.js';
 
 export const Gallery = {
   images: [],
@@ -226,13 +227,20 @@ export const Gallery = {
 
   async deleteImage(id) {
     if (!confirm('Are you sure you want to delete this image?')) return;
-    await room.collection('gallery_images').delete(id);
-    this.render();
+    try {
+      await room.collection('gallery_images').delete(id);
+      showNotification('Image deleted successfully', 'success');
+    } catch (error) {
+      showNotification('Failed to delete image', 'error');
+    }
   },
 
   editTitle(id) {
     const image = this.images.find(img => img.id === id);
-    if (!image) return;
+    if (!image) {
+      showNotification('Image not found', 'error');
+      return;
+    }
     
     this.currentEditId = id;
     const dialog = document.getElementById('editTitleDialog');
@@ -248,15 +256,19 @@ export const Gallery = {
     const newTitle = input.value.trim();
     
     if (!newTitle) {
-      alert('Please enter a title');
+      showNotification('Please enter a title', 'error');
       return;
     }
     
-    await room.collection('gallery_images').update(this.currentEditId, {
-      title: newTitle
-    });
-    
-    this.cancelTitleEdit();
+    try {
+      await room.collection('gallery_images').update(this.currentEditId, {
+        title: newTitle
+      });
+      showNotification('Title updated successfully', 'success');
+      this.cancelTitleEdit();
+    } catch (error) {
+      showNotification('Failed to update title', 'error');
+    }
   },
 
   cancelTitleEdit() {
