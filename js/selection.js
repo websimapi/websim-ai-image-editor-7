@@ -7,28 +7,117 @@ export const Selection = {
   isShiftPressed: false,
   isCtrlPressed: false,
 
-  setTool(tool) {
-    const canvas = document.getElementById('editCanvas');
-    const fillImagePrompt = document.getElementById('fillImagePrompt');
-    
-    document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
-    
-    const toolButton = document.getElementById(`${tool}Tool`);
-    if (toolButton) {
-      toolButton.classList.add('active');
+  async processSelection(actionType, params = {}) {
+    if (!this.current || !Editor.currentImage) {
+      showNotification('Please make a selection first', 'error');
+      return;
     }
 
-    if (tool === 'fillSelection' && this.current) {
-      fillImagePrompt.style.display = 'none';
-      this.fillSelection();
-    } else if (tool === 'setAlpha' && this.current) {
-      fillImagePrompt.style.display = 'none';
-      this.setAlpha();
-    } else if (tool === 'fillWithImage' && this.current) {
-      fillImagePrompt.style.display = 'flex';
-    } else {
-      fillImagePrompt.style.display = 'none';
-      canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+
+    switch (actionType) {
+      case 'fill':
+        const color = document.getElementById('colorPicker').value;
+        const [r, g, b] = this.hexToRgb(color);
+        this.applyToSelection((pos) => {
+          pixels[pos] = r;
+          pixels[pos + 1] = g;
+          pixels[pos + 2] = b;
+        });
+        break;
+
+      case 'alpha':
+        this.applyToSelection((pos) => {
+          pixels[pos + 3] = 0;
+        });
+        break;
+
+      case 'image':
+        await this.fillWithGeneratedImage(params.prompt);
+        return;
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    Editor.originalImageData = imageData;
+  },
+
+  applyToSelection(callback) {
+    for (let i = 0; i < this.current.length; i++) {
+      if (this.current[i]) {
+        callback(i * 4);
+      }
+    }
+  },
+
+  async fillWithGeneratedImage(prompt) {
+    if (!prompt) {
+      showNotification('Please enter a prompt for the selected region', 'error');
+      return;
+    }
+
+    const prefixSelect = document.getElementById('prefixPrompt');
+    const suffixSelect = document.getElementById('suffixPrompt');
+    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
+
+    try {
+      const canvas = document.getElementById('editCanvas');
+      const generatedImage = await this.generateImage(fullPrompt);
+      await this.applyGeneratedImage(generatedImage, canvas);
+      await Editor.saveToGallery(canvas, fullPrompt);
+      
+      document.getElementById('fillImagePrompt').style.display = 'none';
+    } catch (error) {
+      console.error('Error in image fill:', error);
+      showNotification('Failed to fill image. Please try again.', 'error');
+    }
+  },
+
+  generateImage(prompt) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = prompt;
+    });
+  },
+
+  hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? [
+      parseInt(result[1], 16),
+      parseInt(result[2], 16),
+      parseInt(result[3], 16)
+    ] : [0, 0, 0];
+  },
+
+  clear() {
+    this.current = null;
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.putImageData(Editor.originalImageData, 0, 0);
+  },
+
+  setTool(tool) {
+    document.querySelectorAll('.tool-button').forEach(btn => 
+      btn.classList.toggle('active', btn.id === `${tool}Tool`)
+    );
+
+    const fillImagePrompt = document.getElementById('fillImagePrompt');
+    fillImagePrompt.style.display = tool === 'fillWithImage' ? 'flex' : 'none';
+
+    if (this.current) {
+      switch (tool) {
+        case 'fillSelection':
+          this.processSelection('fill');
+          break;
+        case 'setAlpha':
+          this.processSelection('alpha');
+          break;
+      }
     }
   },
 
@@ -122,201 +211,60 @@ export const Selection = {
     }
   },
 
-  fillSelection() {
-    if (!this.current) return;
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = imageData.data;
-    const color = document.getElementById('colorPicker').value;
-    const r = parseInt(color.substr(1, 2), 16);
-    const g = parseInt(color.substr(3, 2), 16);
-    const b = parseInt(color.substr(5, 2), 16);
-    
-    for (let i = 0; i < this.current.length; i++) {
-      if (this.current[i]) {
-        const pixelPos = i * 4;
-        pixels[pixelPos] = r;
-        pixels[pixelPos + 1] = g;
-        pixels[pixelPos + 2] = b;
-      }
-    }
-    
-    ctx.putImageData(imageData, 0, 0);
-    Editor.originalImageData = imageData;
-  },
-
-  setAlpha() {
-    if (!this.current) return;
-    const canvas = document.getElementById('editCanvas');
+  async applyGeneratedImage(generatedImage, canvas) {
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
     
-    for (let i = 0; i < this.current.length; i++) {
-      if (this.current[i]) {
-        const pixelPos = i * 4;
-        pixels[pixelPos + 3] = 0;
-      }
-    }
-    
-    ctx.putImageData(imageData, 0, 0);
-    Editor.originalImageData = imageData;
-  },
+    // Find bounds of selection
+    let minX = canvas.width;
+    let minY = canvas.height;
+    let maxX = 0;
+    let maxY = 0;
 
-  clearSelection() {
-    this.current = null;
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.putImageData(Editor.originalImageData, 0, 0);
-  },
-
-  fillWithImage(prompt) {
-    if (!this.current || !Editor.currentImage) {
-      showNotification('Please make a selection first', 'error');
-      return;
-    }
-    
-    if (!prompt) {
-      showNotification('Please enter a prompt for the selected region', 'error');
-      return;
-    }
-
-    const prefixSelect = document.getElementById('prefixPrompt');
-    const suffixSelect = document.getElementById('suffixPrompt');
-    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
-
-    const loadingSpinner = document.getElementById('loadingSpinner');
-    loadingSpinner.style.display = 'block';
-
-    const generatedImage = document.createElement('img');
-    generatedImage.crossOrigin = 'anonymous';
-    generatedImage.style.display = 'none';
-    generatedImage.dataset.freshFill = 'true';
-    
-    generatedImage.src = fullPrompt;
-    generatedImage.alt = fullPrompt;
-
-    generatedImage.onload = async () => {
-      if (generatedImage.dataset.freshFill !== 'true') return;
-      generatedImage.dataset.freshFill = 'false';
-      
-      loadingSpinner.style.display = 'none';
-      
-      const canvas = document.getElementById('editCanvas');
-      const ctx = canvas.getContext('2d');
-
-      // Find bounds of selection
-      let minX = canvas.width;
-      let minY = canvas.height;
-      let maxX = 0;
-      let maxY = 0;
-
-      for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-          const pos = y * canvas.width + x;
-          if (this.current[pos]) {
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
-          }
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const pos = y * canvas.width + x;
+        if (this.current[pos]) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
         }
       }
+    }
 
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      const selectionWidth = maxX - minX + 1;
-      const selectionHeight = maxY - minY + 1;
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    const selectionWidth = maxX - minX + 1;
+    const selectionHeight = maxY - minY + 1;
       
-      tempCanvas.width = selectionWidth;
-      tempCanvas.height = selectionHeight;
+    tempCanvas.width = selectionWidth;
+    tempCanvas.height = selectionHeight;
       
-      tempCtx.drawImage(generatedImage, 0, 0, selectionWidth, selectionHeight);
+    tempCtx.drawImage(generatedImage, 0, 0, selectionWidth, selectionHeight);
       
-      const scaledImageData = tempCtx.getImageData(0, 0, selectionWidth, selectionHeight);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const pixels = imageData.data;
+    const scaledImageData = tempCtx.getImageData(0, 0, selectionWidth, selectionHeight);
+    const scaledPixels = scaledImageData.data;
 
-      for (let y = minY; y <= maxY; y++) {
-        for (let x = minX; x <= maxX; x++) {
-          const pos = y * canvas.width + x;
-          if (this.current[pos]) {
-            const scaledX = x - minX;
-            const scaledY = y - minY;
-            const scaledPos = (scaledY * selectionWidth + scaledX) * 4;
-            const targetPos = pos * 4;
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const pos = y * canvas.width + x;
+        if (this.current[pos]) {
+          const scaledX = x - minX;
+          const scaledY = y - minY;
+          const scaledPos = (scaledY * selectionWidth + scaledX) * 4;
+          const targetPos = pos * 4;
             
-            pixels[targetPos] = scaledImageData.data[scaledPos];
-            pixels[targetPos + 1] = scaledImageData.data[scaledPos + 1];
-            pixels[targetPos + 2] = scaledImageData.data[scaledPos + 2];
-            pixels[targetPos + 3] = scaledImageData.data[scaledPos + 3];
-          }
+          pixels[targetPos] = scaledPixels[scaledPos];
+          pixels[targetPos + 1] = scaledPixels[scaledPos + 1];
+          pixels[targetPos + 2] = scaledPixels[scaledPos + 2];
+          pixels[targetPos + 3] = scaledPixels[scaledPos + 3];
         }
       }
+    }
 
-      ctx.putImageData(imageData, 0, 0);
-      Editor.originalImageData = imageData;
-
-      // Handle gallery updates
-      let sourceImage;
-      if (Editor.currentImage.dataset.galleryId) {
-        sourceImage = Editor.galleryImages.find(img => img.id === Editor.currentImage.dataset.galleryId);
-      } else {
-        sourceImage = Editor.galleryImages.find(img => img.imageUrl === Editor.currentImage.src);
-      }
-      
-      if (sourceImage) {
-        try {
-          await room.collection('gallery_images').update(sourceImage.id, {
-            uses: (sourceImage.uses || 0) + 1
-          });
-          
-          const basePromptHistory = Editor.galleryImages.find(img => 
-            img.imageUrl === Editor.currentImage.src
-          )?.promptHistory || [{
-            prompt: sourceImage.prompt,
-            timestamp: sourceImage.created_at,
-            username: sourceImage.username
-          }];
-          
-          const promptHistory = [...basePromptHistory];
-          
-          promptHistory.push({
-            prompt: fullPrompt,
-            timestamp: new Date().toISOString(),
-            type: 'selection-fill',
-            username: room.party.client.username
-          });
-          
-          const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-          const file = new File([blob], 'edited-image.png', { type: 'image/png' });
-          const imageUrl = await websim.upload(file);
-          
-          const newEntry = await room.collection('gallery_images').create({
-            prompt: fullPrompt,
-            title: fullPrompt,
-            imageUrl: imageUrl,
-            views: 0,
-            uses: 0,
-            modified: true,
-            promptHistory: promptHistory,
-            sourceImageId: sourceImage.id
-          });
-
-          Editor.currentImage.src = imageUrl;
-          Editor.currentImage.dataset.galleryId = newEntry.id;
-          
-        } catch (error) {
-          console.error('Error saving selection fill:', error);
-          showNotification('Failed to save selection fill. Please try again.', 'error');
-        }
-      }
-      
-      document.getElementById('fillImagePrompt').style.display = 'none';
-      generatedImage.remove();
-    };
-
-    document.body.appendChild(generatedImage);
+    ctx.putImageData(imageData, 0, 0);
+    Editor.originalImageData = imageData;
   }
 };

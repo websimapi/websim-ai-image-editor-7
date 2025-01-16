@@ -196,65 +196,55 @@ export const Editor = {
     const prefixSelect = document.getElementById('prefixPrompt');
     const suffixSelect = document.getElementById('suffixPrompt');
     const fullPrompt = `${prefixSelect.value}${promptInput.value.trim()}${suffixSelect.value}`;
-    
+    await this.saveToGallery(canvas, fullPrompt);
+  },
+
+  async saveToGallery(canvas, prompt) {
     try {
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const file = new File([blob], 'edited-image.png', { type: 'image/png' });
+      const imageUrl = await websim.upload(file);
+      
       const sourceImage = this.galleryImages.find(img => 
         img.imageUrl === this.currentImage.src
       );
-      
-      let promptHistory = [];
-      
-      if (sourceImage) {
-        await room.collection('gallery_images').update(sourceImage.id, {
-          uses: (sourceImage.uses || 0) + 1,
-          views: (sourceImage.views || 0) + 1
-        });
-        
-        // Get existing prompt history if any
-        promptHistory = [...(sourceImage.promptHistory || [{
-          prompt: sourceImage.prompt,
-          timestamp: sourceImage.created_at,
-          username: sourceImage.username
-        }])];
-      }
-      
-      // Add the new edit to prompt history
-      promptHistory.push({
-        prompt: fullPrompt,
-        timestamp: new Date().toISOString(),
-        username: room.party.client.username,
-        type: 'gallery-add'
-      });
 
-      // Convert canvas to blob
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-      const file = new File([blob], 'gallery-image.png', { type: 'image/png' });
+      const promptHistory = this.buildPromptHistory(sourceImage, prompt);
       
-      // Upload image
-      const imageUrl = await websim.upload(file);
-      
-      // Create new gallery entry
-      const galleryEntry = await room.collection('gallery_images').create({
-        prompt: fullPrompt,
-        title: fullPrompt,
-        imageUrl: imageUrl,
+      const newEntry = await room.collection('gallery_images').create({
+        prompt,
+        title: prompt,
+        imageUrl,
         views: 0,
         uses: 0,
         modified: true,
-        promptHistory: promptHistory,
-        sourceImageId: sourceImage ? sourceImage.id : null
+        promptHistory,
+        sourceImageId: sourceImage?.id
       });
 
-      // Update current image reference
       this.currentImage.src = imageUrl;
-      this.currentImage.dataset.galleryId = galleryEntry.id;
+      this.currentImage.dataset.galleryId = newEntry.id;
       
-      showNotification('Image successfully added to gallery!', 'success');
-      
+      showNotification('Image added to gallery successfully', 'success');
     } catch (error) {
-      console.error('Error adding to gallery:', error);
-      showNotification('Failed to add image to gallery. Please try again.', 'error');
+      console.error('Gallery save error:', error);
+      showNotification('Failed to save to gallery', 'error');
     }
+  },
+
+  buildPromptHistory(sourceImage, newPrompt) {
+    const baseHistory = sourceImage?.promptHistory || [{
+      prompt: sourceImage?.prompt,
+      timestamp: sourceImage?.created_at,
+      username: sourceImage?.username
+    }];
+
+    return [...baseHistory, {
+      prompt: newPrompt,
+      timestamp: new Date().toISOString(),
+      username: room.party.client.username,
+      type: 'gallery-add'
+    }];
   },
 
   loadGalleryImage(image) {
