@@ -7,6 +7,9 @@ export const Selection = {
   isShiftPressed: false,
   isCtrlPressed: false,
   currentTool: null,
+  isDragging: false,
+  lastX: null,
+  lastY: null,
 
   async processSelection(actionType, params = {}) {
     if (!this.current || !Editor.currentImage) {
@@ -143,26 +146,52 @@ export const Selection = {
     ctx.drawImage(overlayCanvas, 0, 0);
   },
 
-  clearSelection() {
-    this.current = null;
+  handleCanvasClick(e) {
     const canvas = document.getElementById('editCanvas');
-    if (canvas && Editor.originalImageData) {
-      const ctx = canvas.getContext('2d');
-      ctx.putImageData(Editor.originalImageData, 0, 0);
+    
+    if (e.type === 'mousedown') {
+      Selection.isDragging = true;
+      Selection.performSelection(e, canvas);
+      canvas.addEventListener('mousemove', Selection.handleMouseMove);
+      canvas.addEventListener('mouseup', Selection.handleMouseUp);
     }
   },
 
-  handleCanvasClick(e) {
+  handleMouseMove(e) {
+    if (!Selection.isDragging) return;
+    
+    // Only perform selection if mouse has moved at least 2 pixels from last position
     const canvas = document.getElementById('editCanvas');
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.round((e.clientY - rect.top) * (canvas.height / rect.height));
+    
+    if (Selection.lastX === null || Selection.lastY === null || 
+        Math.abs(x - Selection.lastX) > 2 || Math.abs(y - Selection.lastY) > 2) {
+      Selection.performSelection(e, canvas);
+      Selection.lastX = x;
+      Selection.lastY = y;
+    }
+  },
+
+  handleMouseUp(e) {
+    const canvas = document.getElementById('editCanvas');
+    Selection.isDragging = false;
+    Selection.lastX = null;
+    Selection.lastY = null;
+    canvas.removeEventListener('mousemove', Selection.handleMouseMove);
+    canvas.removeEventListener('mouseup', Selection.handleMouseUp);
+  },
+
+  performSelection(e, canvas) {
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     
     const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
-    const imageData = Editor.originalImageData; // Use original image data for selection
+    const imageData = Editor.originalImageData;
     const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
-    // If CTRL is pressed, remove the selection area
     if (Selection.isCtrlPressed) {
       if (Selection.current) {
         for (let i = 0; i < newSelection.length; i++) {
@@ -172,22 +201,15 @@ export const Selection = {
         }
       }
     } else {
-      // If no current selection or not holding shift, create new selection
-      if (!Selection.current || !Selection.isShiftPressed) {
+      if (!Selection.current || (!Selection.isShiftPressed && !Selection.isDragging)) {
         Selection.current = new Uint8Array(canvas.width * canvas.height);
       }
       
-      // Add to selection
-      if (Selection.isShiftPressed) {
-        for (let i = 0; i < newSelection.length; i++) {
-          Selection.current[i] |= newSelection[i];
-        }
-      } else {
-        Selection.current = newSelection;
+      for (let i = 0; i < newSelection.length; i++) {
+        Selection.current[i] |= newSelection[i];
       }
     }
 
-    // Redraw the selection overlay
     Selection.drawOverlay();
   },
 
@@ -294,6 +316,13 @@ export const Selection = {
 
   setTool(tool) {
     this.currentTool = tool;
+    const canvas = document.getElementById('editCanvas');
+    
+    // Remove existing listeners
+    canvas.removeEventListener('mousedown', this.handleCanvasClick);
+    canvas.removeEventListener('mousemove', this.handleMouseMove);
+    canvas.removeEventListener('mouseup', this.handleMouseUp);
+    
     document.querySelectorAll('.tool-button').forEach(btn => 
       btn.classList.toggle('active', btn.id === `${tool}Tool`)
     );
@@ -303,6 +332,14 @@ export const Selection = {
     
     fillImagePrompt.style.display = tool === 'fillWithImage' ? 'flex' : 'none';
     sensitivityControl.style.display = tool === 'magicWand' ? 'flex' : 'none';
+
+    // Add mousedown listener for magic wand tool
+    if (tool === 'magicWand') {
+      canvas.addEventListener('mousedown', this.handleCanvasClick);
+      canvas.classList.add('magic-wand');
+    } else {
+      canvas.classList.remove('magic-wand');
+    }
 
     if (this.current) {
       switch (tool) {
@@ -315,6 +352,15 @@ export const Selection = {
       }
     }
   },
+
+  clearSelection() {
+    this.current = null;
+    const canvas = document.getElementById('editCanvas');
+    if (canvas && Editor.originalImageData) {
+      const ctx = canvas.getContext('2d');
+      ctx.putImageData(Editor.originalImageData, 0, 0);
+    }
+  }
 };
 
 // Add slider initialization to the window load event
