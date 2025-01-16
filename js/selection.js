@@ -71,19 +71,112 @@ export const Selection = {
   },
 
   magicWandSelect(imageData, startX, startY, tolerance) {
-    // ... existing magic wand selection logic ...
+    const width = imageData.width;
+    const height = imageData.height;
+    const pixels = imageData.data;
+    const visited = new Uint8Array(width * height);
+    const selected = new Uint8Array(width * height);
+    const startPos = (startY * width + startX) * 4;
+    const startR = pixels[startPos];
+    const startG = pixels[startPos + 1];
+    const startB = pixels[startPos + 2];
+    const stack = [[startX, startY]];
+    
+    while (stack.length) {
+      const [x, y] = stack.pop();
+      const pos = y * width + x;
+      if (x < 0 || x >= width || y < 0 || y >= height || visited[pos]) {
+        continue;
+      }
+      const pixelPos = pos * 4;
+      const r = pixels[pixelPos];
+      const g = pixels[pixelPos + 1];
+      const b = pixels[pixelPos + 2];
+      const colorDiff = Math.sqrt(Math.pow(r - startR, 2) + Math.pow(g - startG, 2) + Math.pow(b - startB, 2));
+      if (colorDiff <= tolerance) {
+        visited[pos] = 1;
+        selected[pos] = 1;
+        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+      }
+    }
+    return selected;
   },
 
   drawOverlay() {
-    // ... existing selection overlay drawing logic ...
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.putImageData(Editor.originalImageData, 0, 0);
+    if (!this.current) return;
+    
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pos = y * width + x;
+        if (this.current[pos]) {
+          const isEdge = x > 0 && !this.current[pos - 1] || 
+                        x < width - 1 && !this.current[pos + 1] || 
+                        y > 0 && !this.current[pos - width] || 
+                        y < height - 1 && !this.current[pos + width];
+          if (isEdge) {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(x - 1, y - 1, 3, 3);
+            ctx.strokeStyle = 'black';
+            ctx.strokeRect(x - 1, y - 1, 3, 3);
+          }
+        }
+      }
+    }
   },
 
   fillSelection() {
-    // ... existing fill selection logic ...
+    if (!this.current) return;
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    const color = document.getElementById('colorPicker').value;
+    const r = parseInt(color.substr(1, 2), 16);
+    const g = parseInt(color.substr(3, 2), 16);
+    const b = parseInt(color.substr(5, 2), 16);
+    
+    for (let i = 0; i < this.current.length; i++) {
+      if (this.current[i]) {
+        const pixelPos = i * 4;
+        pixels[pixelPos] = r;
+        pixels[pixelPos + 1] = g;
+        pixels[pixelPos + 2] = b;
+      }
+    }
+    
+    ctx.putImageData(imageData, 0, 0);
+    Editor.originalImageData = imageData;
   },
 
   setAlpha() {
-    // ... existing alpha setting logic ...
+    if (!this.current) return;
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    
+    for (let i = 0; i < this.current.length; i++) {
+      if (this.current[i]) {
+        const pixelPos = i * 4;
+        pixels[pixelPos + 3] = 0;
+      }
+    }
+    
+    ctx.putImageData(imageData, 0, 0);
+    Editor.originalImageData = imageData;
+  },
+
+  fillWithImage() {
+    if (!this.current) return;
+    document.getElementById('fillImagePrompt').style.display = 'flex';
   },
 
   clear() {
