@@ -43,9 +43,14 @@ export const Editor = {
     const prefixSelect = document.getElementById('prefixPrompt');
     const promptInput = document.getElementById('promptInput');
     const suffixSelect = document.getElementById('suffixPrompt');
-    const fullPrompt = `${prefixSelect.value}${promptInput.value.trim()}${suffixSelect.value}`;
+    
+    // Sanitize the prompt input
+    const sanitizedPrompt = this.sanitizePrompt(promptInput.value.trim());
+    promptInput.value = sanitizedPrompt; // Update the input with sanitized version
+    
+    const fullPrompt = `${prefixSelect.value}${sanitizedPrompt}${suffixSelect.value}`;
 
-    if (!promptInput.value.trim()) {
+    if (!sanitizedPrompt) {
       showNotification('Please enter a prompt', 'error');
       return;
     }
@@ -109,6 +114,22 @@ export const Editor = {
     };
 
     imageContainer.appendChild(generatedImage);
+  },
+
+  sanitizePrompt(prompt) {
+    // Remove zero-width characters and other invisible unicode
+    prompt = prompt.replace(/[\u200B-\u200D\uFEFF]/g, '');
+    
+    // Remove control characters but preserve newlines
+    prompt = prompt.replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, '');
+    
+    // Replace multiple spaces with single space
+    prompt = prompt.replace(/\s+/g, ' ');
+    
+    // Trim whitespace
+    prompt = prompt.trim();
+    
+    return prompt;
   },
 
   setupImageEditor() {

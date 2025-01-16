@@ -177,11 +177,13 @@ export const Selection = {
     }
   },
 
-  fillWithImage(prompt) {
+  async fillWithImage(prompt) {
     if (!this.current || !Editor.currentImage) {
       showNotification('Please make a selection first', 'error');
       return;
     }
+    
+    prompt = Editor.sanitizePrompt(prompt);
     
     if (!prompt) {
       showNotification('Please enter a prompt for the selected region', 'error');
@@ -212,7 +214,6 @@ export const Selection = {
       const canvas = document.getElementById('editCanvas');
       const ctx = canvas.getContext('2d');
 
-      // Find bounds of selection
       let minX = canvas.width;
       let minY = canvas.height;
       let maxX = 0;
@@ -264,7 +265,6 @@ export const Selection = {
       ctx.putImageData(imageData, 0, 0);
       Editor.originalImageData = imageData;
 
-      // Handle gallery updates
       let sourceImage;
       if (Editor.currentImage.dataset.galleryId) {
         sourceImage = Editor.galleryImages.find(img => img.id === Editor.currentImage.dataset.galleryId);
@@ -327,7 +327,6 @@ export const Selection = {
   }
 };
 
-// Add event listener for sensitivity slider
 document.getElementById('sensitivitySlider')?.addEventListener('input', (e) => {
   document.getElementById('sensitivityValue').textContent = e.target.value;
 });
