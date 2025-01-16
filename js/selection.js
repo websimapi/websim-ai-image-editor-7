@@ -67,16 +67,108 @@ export const Selection = {
     const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
 
     try {
+      // Show loading state
+      const loadingSpinner = document.getElementById('loadingSpinner');
+      loadingSpinner.style.display = 'block';
+
+      // Generate image using the websim API
+      const response = await fetch('https://api.websim.ai/generate/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: fullPrompt })
+      });
+      
+      if (!response.ok) throw new Error('Image generation failed');
+      const data = await response.json();
+
+      // Load the generated image
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      const imagePromise = new Promise((resolve, reject) => {
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = data.imageUrl;
+      });
+
+      const generatedImage = await imagePromise;
       const canvas = document.getElementById('editCanvas');
-      const generatedImage = await this.generateImage(fullPrompt);
       await this.applyGeneratedImage(generatedImage, canvas);
+      
+      // Hide loading and prompt input
+      loadingSpinner.style.display = 'none';
+      document.getElementById('fillImagePrompt').style.display = 'none';
+      
+      // Save to gallery
       await Editor.saveToGallery(canvas, fullPrompt);
       
-      document.getElementById('fillImagePrompt').style.display = 'none';
+      showNotification('Selection filled with generated image', 'success');
     } catch (error) {
       console.error('Error in image fill:', error);
       showNotification('Failed to fill image. Please try again.', 'error');
+      const loadingSpinner = document.getElementById('loadingSpinner');
+      loadingSpinner.style.display = 'none';
     }
+  },
+
+  async fillWithImage(prompt) {
+    if (!prompt || !this.current) {
+      showNotification('Please make a selection and enter a prompt', 'error');
+      return;
+    }
+      
+    const prefixSelect = document.getElementById('prefixPrompt');
+    const suffixSelect = document.getElementById('suffixPrompt');
+    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
+
+    try {
+      const loadingSpinner = document.getElementById('loadingSpinner');
+      loadingSpinner.style.display = 'block';
+
+      // Generate image using the websim API
+      const response = await fetch('https://api.websim.ai/generate/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: fullPrompt })
+      });
+      
+      if (!response.ok) throw new Error('Image generation failed');
+      const data = await response.json();
+      
+      // Create and load the image
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      const imagePromise = new Promise((resolve, reject) => {
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = data.imageUrl; // Use the URL from the API response
+      });
+
+      const generatedImage = await imagePromise;
+      const canvas = document.getElementById('editCanvas');
+      await this.applyGeneratedImage(generatedImage, canvas);
+      
+      loadingSpinner.style.display = 'none';
+      document.getElementById('fillImagePrompt').style.display = 'none';
+      
+      // Save the modified image to gallery
+      await Editor.saveToGallery(canvas, fullPrompt);
+      
+      showNotification('Selection filled successfully', 'success');
+    } catch (error) {
+      console.error('Error generating image:', error);
+      loadingSpinner.style.display = 'none';
+      showNotification('Failed to generate image. Please try again.', 'error');
+    }
+  },
+
+  async setAlpha() {
+    await this.processSelection('alpha');
+  },
+
+  fillSelection() {
+    this.processSelection('fill');
   },
 
   generateImage(prompt) {
@@ -300,73 +392,6 @@ export const Selection = {
 
     ctx.putImageData(imageData, 0, 0);
     Editor.originalImageData = imageData;
-  },
-
-  async fillWithImage(prompt) {
-    if (!prompt || !this.current) return;
-    
-    const prefixSelect = document.getElementById('prefixPrompt');
-    const suffixSelect = document.getElementById('suffixPrompt');
-    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
-
-    try {
-      const loadingSpinner = document.getElementById('loadingSpinner');
-      loadingSpinner.style.display = 'block';
-
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      
-      const imagePromise = new Promise((resolve, reject) => {
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = fullPrompt;
-      });
-
-      const generatedImage = await imagePromise;
-      const canvas = document.getElementById('editCanvas');
-      await this.applyGeneratedImage(generatedImage, canvas);
-      
-      loadingSpinner.style.display = 'none';
-      document.getElementById('fillImagePrompt').style.display = 'none';
-      
-      // Save the modified image to gallery
-      await Editor.saveToGallery(canvas, fullPrompt);
-    } catch (error) {
-      console.error('Error generating image:', error);
-      const loadingSpinner = document.getElementById('loadingSpinner');
-      loadingSpinner.style.display = 'none';
-    }
-  },
-
-  async setAlpha() {
-    await this.processSelection('alpha');
-  },
-
-  fillSelection() {
-    this.processSelection('fill');
-  },
-
-  async fillWithGeneratedImage(prompt) {
-    if (!prompt) {
-      showNotification('Please enter a prompt for the selected region', 'error');
-      return;
-    }
-
-    const prefixSelect = document.getElementById('prefixPrompt');
-    const suffixSelect = document.getElementById('suffixPrompt');
-    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
-
-    try {
-      const canvas = document.getElementById('editCanvas');
-      const generatedImage = await this.generateImage(fullPrompt);
-      await this.applyGeneratedImage(generatedImage, canvas);
-      await Editor.saveToGallery(canvas, fullPrompt);
-      
-      document.getElementById('fillImagePrompt').style.display = 'none';
-    } catch (error) {
-      console.error('Error in image fill:', error);
-      showNotification('Failed to fill image. Please try again.', 'error');
-    }
   },
 
   setupSensitivitySlider() {
