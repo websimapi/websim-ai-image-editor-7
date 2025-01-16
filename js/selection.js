@@ -91,6 +91,13 @@ export const Selection = {
   isCtrlPressed: false,
   magicWand: null,
   selectionStartTime: 0,
+  zoom: 1,
+  panX: 0,  
+  panY: 0,
+  isPanning: false,
+  lastMouseX: 0,
+  lastMouseY: 0,
+  selectedTool: null,
 
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
@@ -125,19 +132,78 @@ export const Selection = {
       fillImagePrompt.style.display = 'none';
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
     }
+    
+    this.selectedTool = tool;
+  },
+
+  toggleFullscreen() {
+    const container = document.getElementById('editorContainer');
+    container.classList.toggle('fullscreen');
+    this.updateCanvasView();
+  },
+
+  updateCanvasView() {
+    const canvas = document.getElementById('editCanvas');
+    const container = document.getElementById('editorContainer');
+    
+    if (container.classList.contains('fullscreen')) {
+      canvas.style.transform = `scale(${this.zoom}) translate(${this.panX}px, ${this.panY}px)`;
+    } else {
+      canvas.style.transform = 'none';
+      this.zoom = 1;
+      this.panX = 0;
+      this.panY = 0;
+    }
+  },
+
+  handleZoom(event) {
+    if (event.deltaY < 0) {
+      this.zoom = Math.min(this.zoom * 1.1, 5);
+    } else {
+      this.zoom = Math.max(this.zoom / 1.1, 0.1);
+    }
+    this.updateCanvasView();
+    event.preventDefault();
+  },
+
+  startPan(event) {
+    this.isPanning = true;
+    this.lastMouseX = event.clientX;
+    this.lastMouseY = event.clientY;
+  },
+
+  handlePan(event) {
+    if (!this.isPanning) return;
+    
+    const dx = event.clientX - this.lastMouseX;
+    const dy = event.clientY - this.lastMouseY;
+    
+    this.panX += dx / this.zoom;
+    this.panY += dy / this.zoom;
+    
+    this.lastMouseX = event.clientX;
+    this.lastMouseY = event.clientY;
+    
+    this.updateCanvasView();
+  },
+
+  stopPan() {
+    this.isPanning = false;
   },
 
   handleCanvasClick(e) {
     const now = Date.now();
-    if (now - this.selectionStartTime < 100) { 
-      return;
-    }
-    this.selectionStartTime = now;
+    if (now - Selection.selectionStartTime < 100) return;
+    Selection.selectionStartTime = now;
 
     const canvas = document.getElementById('editCanvas');
     const rect = canvas.getBoundingClientRect();
-    const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
-    const y = Math.round((e.clientY - rect.top) * (canvas.height / rect.height));
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    // Adjust coordinates for zoom and pan
+    const x = Math.round((e.clientX - rect.left) * scaleX / Selection.zoom - Selection.panX);
+    const y = Math.round((e.clientY - rect.top) * scaleY / Selection.zoom - Selection.panY);
 
     if (!Selection.magicWand) {
       Selection.magicWand = new MagicWand(canvas);
@@ -145,14 +211,24 @@ export const Selection = {
 
     Selection.magicWand.tolerance = parseInt(document.getElementById('sensitivitySlider').value);
 
-    if (!Selection.isShiftPressed && !Selection.isCtrlPressed) {
+    if (Selection.isCtrlPressed) {
+      // Handle deselection
+      if (Selection.current) {
+        const deselection = Selection.magicWand.select(x, y);
+        for (let i = 0; i < Selection.current.length; i++) {
+          if (deselection[i]) {
+            Selection.current[i] = 0;
+          }
+        }
+      }
+    } else if (!Selection.isShiftPressed) {
       Selection.current = null;
     }
 
     requestAnimationFrame(() => {
       const newSelection = Selection.magicWand.select(x, y);
       
-      if (Selection.isShiftPressed || Selection.isCtrlPressed) {
+      if (Selection.isShiftPressed) {
         if (Selection.current) {
           for (let i = 0; i < Selection.current.length; i++) {
             Selection.current[i] = Selection.current[i] || newSelection[i];
@@ -160,7 +236,7 @@ export const Selection = {
         } else {
           Selection.current = newSelection;
         }
-      } else {
+      } else if (!Selection.isCtrlPressed) {
         Selection.current = newSelection;
       }
 
@@ -413,4 +489,24 @@ document.getElementById('sensitivitySlider')?.addEventListener('input', (e) => {
   if (Selection.magicWand) {
     Selection.magicWand.tolerance = parseInt(e.target.value);
   }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('editCanvas');
+  const container = document.getElementById('editorContainer');
+  
+  container.addEventListener('wheel', Selection.handleZoom.bind(Selection));
+  canvas.addEventListener('mousedown', Selection.startPan.bind(Selection));
+  document.addEventListener('mousemove', Selection.handlePan.bind(Selection));
+  document.addEventListener('mouseup', Selection.stopPan.bind(Selection));
+  
+  // Add zoom buttons
+  const zoomControls = document.createElement('div');
+  zoomControls.className = 'zoom-controls';
+  zoomControls.innerHTML = `
+    <button onclick="Selection.zoom *= 1.1; Selection.updateCanvasView()">🔍+</button>
+    <button onclick="Selection.zoom = 1; Selection.panX = 0; Selection.panY = 0; Selection.updateCanvasView()">Reset</button>
+    <button onclick="Selection.zoom /= 1.1; Selection.updateCanvasView()">🔍-</button>
+  `;
+  container.appendChild(zoomControls);
 });
