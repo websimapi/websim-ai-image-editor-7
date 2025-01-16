@@ -178,9 +178,14 @@ export const Gallery = {
 
   togglePromptHistory(header) {
     const historyDiv = header.closest('.prompt-history');
+    const isExpanded = historyDiv.classList.contains('expanded');
     historyDiv.classList.toggle('expanded');
+    
+    // Update ARIA attributes
+    header.setAttribute('aria-expanded', !isExpanded);
+    
     const entriesDiv = historyDiv.querySelector('.prompt-history-entries');
-    entriesDiv.style.display = historyDiv.classList.contains('expanded') ? 'block' : 'none';
+    entriesDiv.style.display = !isExpanded ? 'block' : 'none';
   },
 
   async loadImage(id) {

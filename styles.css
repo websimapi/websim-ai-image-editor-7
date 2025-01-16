@@ -1,36 +1,330 @@
-.tool-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: #999;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.tool-button:disabled:hover {
-  transform: none;
-  background: #999;
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  color: white;
+  font-family: Arial, sans-serif;
+  padding: 2rem;
 }
 
-.history-panel {
-  margin-top: 1rem;
-  padding: 0.5rem;
+.container {
+  max-width: 1200px;
+  width: 95%;
+  text-align: center;
+  padding: 10px;
+  margin: 0 auto;
+}
+
+h1 {
+  margin-bottom: 2rem;
+  font-size: 2.5rem;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.color-display {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
   background: rgba(255,255,255,0.1);
-  border-radius: 4px;
-  max-height: 200px;
-  overflow-y: auto;
+  border-radius: 5px;
+  margin-left: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: center;
 }
 
-.history-entry {
-  padding: 0.5rem;
-  margin: 0.25rem 0;
-  background: rgba(255,255,255,0.05);
+.prompt-history {
+  margin: 8px 0;
   border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.prompt-history-header {
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.3);
   cursor: pointer;
-  transition: background 0.2s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  color: rgba(255,255,255,0.95);
+  font-weight: 500;
 }
 
-.history-entry:hover {
+.prompt-history-header:hover {
+  background: rgba(0,0,0,0.3);
+}
+
+.prompt-history-header .expand-icon {
+  transition: transform 0.2s;
+}
+
+.prompt-history.expanded .expand-icon {
+  transform: rotate(180deg);
+}
+
+.prompt-history-entries {
+  max-height: 300px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.3) transparent;
+  padding: 8px 12px;
+  font-size: 0.9em;
+  display: none;
+}
+
+.prompt-history.expanded .prompt-history-entries {
+  display: block;
+}
+
+.prompt-history-entries::-webkit-scrollbar {
+  width: 6px;
+}
+
+.prompt-history-entries::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prompt-history-entries::-webkit-scrollbar-thumb {
+  background-color: rgba(255,255,255,0.3);
+  border-radius: 3px;
+}
+
+.prompt-history-entry {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.prompt-history-entry:last-child {
+  border-bottom: none;
+}
+
+.prompt-history-entry .timestamp {
+  font-size: 0.85em;
+  color: rgba(255,255,255,0.5);
+  margin-top: 4px;
+}
+
+.by-user {
+  margin: 4px 0;
+  font-size: 0.9em;
+  color: rgba(255,255,255,0.8);
+}
+
+.gallery-item-controls {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.gallery-item-controls button {
+  width: 32px;
+  height: 32px;
+  min-width: unset;
+  padding: 6px;
   background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
 }
 
-.history-entry.current {
-  background: rgba(33,150,243,0.3);
+.gallery-item-controls .edit-button {
+  background: #2196F3;
+}
+
+.gallery-item-controls .delete-button {
+  background: #f44336;
+}
+
+.gallery-item-controls button:hover {
+  transform: scale(1.1);
+  filter: brightness(1.1);
+}
+
+.gallery-item-controls button svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+#userFilterInfo {
+  background: rgba(255,255,255,0.1);
+  padding: 0.8rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.8rem;
+  max-width: 100%;
+}
+
+#userFilterInfo span {
+  font-size: 0.9rem;
+  white-space: normal;
+  word-break: break-word;
+  flex: 1;
+  min-width: 200px;
+}
+
+.gallery-item {
+  padding: 1rem;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.gallery-item .metadata {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.9);
+  word-break: break-word;
+}
+
+.image-title {
+  font-size: 1rem;
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+  word-break: break-word;
+  max-height: 4.2em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  cursor: pointer;
+  position: relative;
+}
+
+.image-title:hover {
+  color: #2196F3;
+}
+
+.image-title .edit-icon {
+  margin-left: 0.4rem;
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 6px;
+  color: white;
+  font-size: 0.95rem;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+  max-width: 90%;
+  width: auto;
+  text-align: center;
+  pointer-events: none;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  word-break: break-word;
+}
+
+.notification.show {
+  opacity: 1;
+}
+
+.notification.success {
+  background: rgba(76, 175, 80, 0.9);
+}
+
+.notification.error {
+  background: rgba(244, 67, 54, 0.9);
+}
+
+.notification.info {
+  background: rgba(33, 150, 243, 0.9);
+}
+
+.tool-button,
+.pagination-button,
+.gallery-tab,
+.username-link {
+  position: relative;
+  outline: none;
+}
+
+.tool-button:focus,
+.pagination-button:focus,
+.gallery-tab:focus,
+.username-link:focus {
+  box-shadow: 0 0 0 2px #2196F3, 0 0 0 4px rgba(33,150,243,0.3);
+}
+
+.tool-button:focus:not(:focus-visible),
+.pagination-button:focus:not(:focus-visible),
+.gallery-tab:focus:not(:focus-visible),
+.username-link:focus:not(:focus-visible) {
+  box-shadow: none;
+}
+
+*:focus-visible {
+  outline: 2px solid #2196F3;
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+[aria-expanded="true"] .expand-icon {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 600px) {
+  .input-group {
+    gap: 10px;
+  }
+
+  .tool-group {
+    justify-content: center;
+  }
+
+  .color-display {
+    width: 100%;
+    justify-content: center;
+    margin: 10px 0;
+  }
+
+  #userFilterInfo {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  #userFilterInfo .clear-filter-button {
+    align-self: center;
+  }
+
+  .gallery-item-controls {
+    justify-content: center;
+  }
 }
