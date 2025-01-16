@@ -36,41 +36,43 @@ export const Selection = {
       fillImagePrompt.style.display = 'none';
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
       
-      // Add mouse events for magic wand drag selection
       if (tool === 'magicWand') {
-        this.setupDragEvents(canvas);
+        canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+        canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+        canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+        canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
       } else {
-        this.removeDragEvents(canvas);
+        canvas.removeEventListener('mousedown', this.handleMouseDown.bind(this));
+        canvas.removeEventListener('mousemove', this.handleMouseMove.bind(this));
+        canvas.removeEventListener('mouseup', this.handleMouseUp.bind(this));
+        canvas.removeEventListener('mouseleave', this.handleMouseUp.bind(this));
       }
     }
-  },
-
-  setupDragEvents(canvas) {
-    canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
-    canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
-    canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
-    canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
-  },
-
-  removeDragEvents(canvas) {
-    canvas.removeEventListener('mousedown', this.handleMouseDown.bind(this));
-    canvas.removeEventListener('mousemove', this.handleMouseMove.bind(this));
-    canvas.removeEventListener('mouseup', this.handleMouseUp.bind(this));
-    canvas.removeEventListener('mouseleave', this.handleMouseUp.bind(this));
   },
 
   handleMouseDown(e) {
     this.isMouseDown = true;
     const canvas = e.target;
     const rect = canvas.getBoundingClientRect();
-    this.lastX = (e.clientX - rect.left) * (canvas.width / rect.width);
-    this.lastY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    this.lastX = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+    this.lastY = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
     this.handleSelection(e);
   },
 
   handleMouseMove(e) {
     if (!this.isMouseDown) return;
-    this.handleSelection(e);
+
+    const canvas = e.target;
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+
+    // Only process if mouse has moved to a new pixel
+    if (x !== this.lastX || y !== this.lastY) {
+      this.lastX = x;
+      this.lastY = y;
+      this.handleSelection(e);
+    }
   },
 
   handleMouseUp() {
@@ -82,19 +84,24 @@ export const Selection = {
   handleSelection(e) {
     const canvas = e.target;
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-    const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
+    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+    
+    // Bounds checking
+    if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) return;
 
+    const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
     if (!this.isShiftPressed && !this.isCtrlPressed && !this.isMouseDown) {
-      this.current = null;
+      this.current = new Uint8Array(canvas.width * canvas.height);
     }
 
-    const imageData = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height);
-    const newSelection = this.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
-    
+    const newSelection = this.floodFill(imageData, x, y, sensitivity);
+
     if (this.isCtrlPressed) {
-      // Deselect the region
+      // Subtract from selection
       if (this.current) {
         for (let i = 0; i < this.current.length; i++) {
           if (newSelection[i]) {
@@ -102,53 +109,83 @@ export const Selection = {
           }
         }
       }
-    } else if (this.isShiftPressed || this.isMouseDown) {
-      // Add to selection
-      if (this.current) {
-        for (let i = 0; i < this.current.length; i++) {
-          this.current[i] = this.current[i] || newSelection[i];
-        }
-      } else {
-        this.current = newSelection;
-      }
     } else {
-      // New selection
-      this.current = newSelection;
+      // Add to selection
+      if (!this.current) {
+        this.current = new Uint8Array(canvas.width * canvas.height);
+      }
+      for (let i = 0; i < this.current.length; i++) {
+        if (newSelection[i]) {
+          this.current[i] = 1;
+        }
+      }
     }
 
     this.drawOverlay();
   },
 
-  magicWandSelect(imageData, startX, startY, tolerance) {
+  floodFill(imageData, startX, startY, tolerance) {
     const width = imageData.width;
     const height = imageData.height;
     const pixels = imageData.data;
+    const selection = new Uint8Array(width * height);
     const visited = new Uint8Array(width * height);
-    const selected = new Uint8Array(width * height);
     const startPos = (startY * width + startX) * 4;
-    const startR = pixels[startPos];
-    const startG = pixels[startPos + 1];
-    const startB = pixels[startPos + 2];
-    const stack = [[startX, startY]];
-    
-    while (stack.length) {
-      const [x, y] = stack.pop();
+    const targetColor = {
+      r: pixels[startPos],
+      g: pixels[startPos + 1],
+      b: pixels[startPos + 2],
+      a: pixels[startPos + 3]
+    };
+
+    // Early exit if starting point is transparent
+    if (targetColor.a === 0) return selection;
+
+    const stack = [{x: startX, y: startY}];
+    const toleranceSquared = tolerance * tolerance;
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      const x = current.x;
+      const y = current.y;
       const pos = y * width + x;
+
       if (x < 0 || x >= width || y < 0 || y >= height || visited[pos]) {
         continue;
       }
+
       const pixelPos = pos * 4;
-      const r = pixels[pixelPos];
-      const g = pixels[pixelPos + 1];
-      const b = pixels[pixelPos + 2];
-      const colorDiff = Math.sqrt(Math.pow(r - startR, 2) + Math.pow(g - startG, 2) + Math.pow(b - startB, 2));
-      if (colorDiff <= tolerance) {
+      const currentColor = {
+        r: pixels[pixelPos],
+        g: pixels[pixelPos + 1],
+        b: pixels[pixelPos + 2],
+        a: pixels[pixelPos + 3]
+      };
+
+      const colorDiffSquared = 
+        Math.pow(currentColor.r - targetColor.r, 2) +
+        Math.pow(currentColor.g - targetColor.g, 2) +
+        Math.pow(currentColor.b - targetColor.b, 2);
+
+      if (colorDiffSquared <= toleranceSquared && currentColor.a > 0) {
         visited[pos] = 1;
-        selected[pos] = 1;
-        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        selection[pos] = 1;
+
+        // 4-way connectivity
+        stack.push({x: x + 1, y: y});
+        stack.push({x: x - 1, y: y});
+        stack.push({x: x, y: y + 1});
+        stack.push({x: x, y: y - 1});
+
+        // Optional: 8-way connectivity for smoother selections
+        stack.push({x: x + 1, y: y + 1});
+        stack.push({x: x - 1, y: y - 1});
+        stack.push({x: x + 1, y: y - 1});
+        stack.push({x: x - 1, y: y + 1});
       }
     }
-    return selected;
+
+    return selection;
   },
 
   drawOverlay() {
