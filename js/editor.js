@@ -5,17 +5,22 @@ import { Gallery } from './gallery.js';
 export const Editor = {
   currentImage: null,
   originalImageData: null,
+  galleryImages: [],
 
   setup() {
     this.setupEventListeners();
     this.setupColorPicker();
   },
 
-  setupEventListeners() {
+  async setupEventListeners() {
     document.getElementById('promptInput').addEventListener('keypress', e => {
       if (e.key === 'Enter') {
         this.generateImage();
       }
+    });
+    this.galleryImages = await room.collection('gallery_images').getList();
+    room.collection('gallery_images').subscribe(images => {
+      this.galleryImages = images;
     });
   },
 
@@ -192,7 +197,7 @@ export const Editor = {
     const fullPrompt = `${prefixSelect.value}${promptInput.value.trim()}${suffixSelect.value}`;
     
     try {
-      const sourceImage = Gallery.images.find(img => 
+      const sourceImage = this.galleryImages.find(img => 
         img.imageUrl === this.currentImage.src
       );
       

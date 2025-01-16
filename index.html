@@ -631,7 +631,7 @@
           
           <div class="fill-image-prompt" id="fillImagePrompt" style="display: none;">
             <input type="text" id="selectionPromptInput" placeholder="Enter prompt for selected region...">
-            <button onclick="Editor.generateSelectionFill()">Prompt Fill Image</button>
+            <button onclick="Selection.fillWithImage(document.getElementById('selectionPromptInput').value.trim())">Prompt Fill Image</button>
           </div>
           
           <button onclick="Editor.resetImage()">Reset Image</button>

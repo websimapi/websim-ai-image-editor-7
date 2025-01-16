@@ -1,4 +1,5 @@
 import { Editor } from './editor.js';
+import { room } from './room.js';
 
 export const Selection = {
   current: null,
@@ -174,9 +175,145 @@ export const Selection = {
     Editor.originalImageData = imageData;
   },
 
-  fillWithImage() {
-    if (!this.current) return;
-    document.getElementById('fillImagePrompt').style.display = 'flex';
+  fillWithImage(prompt) {
+    if (!this.current || !Editor.currentImage) return;
+    
+    const prefixSelect = document.getElementById('prefixPrompt');
+    const suffixSelect = document.getElementById('suffixPrompt');
+    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
+
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    loadingSpinner.style.display = 'block';
+
+    const generatedImage = document.createElement('img');
+    generatedImage.crossOrigin = 'anonymous';
+    generatedImage.style.display = 'none';
+    generatedImage.dataset.freshFill = 'true';
+    
+    generatedImage.src = fullPrompt;
+    generatedImage.alt = fullPrompt;
+
+    generatedImage.onload = async () => {
+      if (generatedImage.dataset.freshFill !== 'true') return;
+      generatedImage.dataset.freshFill = 'false';
+      
+      loadingSpinner.style.display = 'none';
+      
+      const canvas = document.getElementById('editCanvas');
+      const ctx = canvas.getContext('2d');
+
+      // Find bounds of selection
+      let minX = canvas.width;
+      let minY = canvas.height;
+      let maxX = 0;
+      let maxY = 0;
+
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          const pos = y * canvas.width + x;
+          if (this.current[pos]) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+      }
+
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      const selectionWidth = maxX - minX + 1;
+      const selectionHeight = maxY - minY + 1;
+      
+      tempCanvas.width = selectionWidth;
+      tempCanvas.height = selectionHeight;
+      
+      tempCtx.drawImage(generatedImage, 0, 0, selectionWidth, selectionHeight);
+      
+      const scaledImageData = tempCtx.getImageData(0, 0, selectionWidth, selectionHeight);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const pos = y * canvas.width + x;
+          if (this.current[pos]) {
+            const scaledX = x - minX;
+            const scaledY = y - minY;
+            const scaledPos = (scaledY * selectionWidth + scaledX) * 4;
+            const targetPos = pos * 4;
+            
+            pixels[targetPos] = scaledImageData.data[scaledPos];
+            pixels[targetPos + 1] = scaledImageData.data[scaledPos + 1];
+            pixels[targetPos + 2] = scaledImageData.data[scaledPos + 2];
+            pixels[targetPos + 3] = scaledImageData.data[scaledPos + 3];
+          }
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      Editor.originalImageData = imageData;
+
+      // Handle gallery updates
+      let sourceImage;
+      if (Editor.currentImage.dataset.galleryId) {
+        sourceImage = Editor.galleryImages.find(img => img.id === Editor.currentImage.dataset.galleryId);
+      } else {
+        sourceImage = Editor.galleryImages.find(img => img.imageUrl === Editor.currentImage.src);
+      }
+      
+      if (sourceImage) {
+        try {
+          await room.collection('gallery_images').update(sourceImage.id, {
+            uses: (sourceImage.uses || 0) + 1
+          });
+          
+          const basePromptHistory = Editor.galleryImages.find(img => 
+            img.imageUrl === Editor.currentImage.src
+          )?.promptHistory || [{
+            prompt: sourceImage.prompt,
+            timestamp: sourceImage.created_at,
+            username: sourceImage.username
+          }];
+          
+          const promptHistory = [...basePromptHistory];
+          
+          promptHistory.push({
+            prompt: fullPrompt,
+            timestamp: new Date().toISOString(),
+            type: 'selection-fill',
+            username: room.party.client.username
+          });
+          
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+          const file = new File([blob], 'edited-image.png', { type: 'image/png' });
+          const imageUrl = await websim.upload(file);
+          
+          const newEntry = await room.collection('gallery_images').create({
+            prompt: fullPrompt,
+            title: fullPrompt,
+            imageUrl: imageUrl,
+            views: 0,
+            uses: 0,
+            modified: true,
+            promptHistory: promptHistory,
+            sourceImageId: sourceImage.id
+          });
+
+          Editor.currentImage.src = imageUrl;
+          Editor.currentImage.dataset.galleryId = newEntry.id;
+          
+        } catch (error) {
+          console.error('Error saving selection fill:', error);
+          alert('Failed to save selection fill. Please try again.');
+        }
+      }
+      
+      document.getElementById('fillImagePrompt').style.display = 'none';
+      generatedImage.remove();
+    };
+
+    document.body.appendChild(generatedImage);
   },
 
   clear() {
