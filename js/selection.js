@@ -164,11 +164,15 @@ export const Selection = {
     Editor.originalImageData = imageData;
   },
 
-  clearSelection() {
+  clear() {
     this.current = null;
     const canvas = document.getElementById('editCanvas');
     const ctx = canvas.getContext('2d');
     ctx.putImageData(Editor.originalImageData, 0, 0);
+  },
+
+  clearSelection() {
+    this.clear();
   },
 
   fillWithImage(prompt) {

@@ -222,24 +222,10 @@ export const Editor = {
     const canvas = document.getElementById('editCanvas');
     const ctx = canvas.getContext('2d');
     ctx.putImageData(this.originalImageData, 0, 0);
-    Selection.clear();
-
-    // Add reset action to project history
-    await this.currentProject.addAction({
-      type: 'reset',
-      newState: {
-        imageUrl: this.currentImage.src,
-        imageData: this.originalImageData,
-        prompt: this.currentImage.alt,
-        selection: null
-      },
-      metadata: {}
-    });
-
-    this.updateUndoRedoButtons();
+    Selection.clearSelection();
   },
 
-  saveImage() {
+  async saveImage() {
     const canvas = document.getElementById('editCanvas');
     const link = document.createElement('a');
     link.download = 'edited-image.png';
@@ -247,18 +233,20 @@ export const Editor = {
     link.click();
 
     // Add save action to project history
-    await this.currentProject.addAction({
-      type: 'save',
-      newState: {
-        imageUrl: this.currentImage.src,
-        imageData: this.originalImageData,
-        prompt: this.currentImage.alt,
-        selection: Selection.current
-      },
-      metadata: {}
-    });
+    if (this.currentProject) {
+      await this.currentProject.addAction({
+        type: 'save',
+        newState: {
+          imageUrl: this.currentImage.src,
+          imageData: this.originalImageData,
+          prompt: this.currentImage.alt,
+          selection: Selection.current
+        },
+        metadata: {}
+      });
 
-    this.updateUndoRedoButtons();
+      this.updateUndoRedoButtons();
+    }
   },
 
   async addToGallery() {
