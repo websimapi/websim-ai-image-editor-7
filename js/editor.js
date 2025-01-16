@@ -27,7 +27,7 @@ export const Editor = {
 
   setupColorPicker() {
     const picker = document.getElementById('colorPicker');
-    const preview = document.getElementById('colorPreview'); 
+    const preview = document.getElementById('colorPreview');
     const value = document.getElementById('colorValue');
 
     picker.addEventListener('input', e => {
@@ -70,21 +70,21 @@ export const Editor = {
     generatedImage.style.display = 'none';
     generatedImage.crossOrigin = 'anonymous';
     generatedImage.dataset.freshGeneration = 'true';
-    
+
     generatedImage.src = fullPrompt;
     generatedImage.alt = fullPrompt;
 
     generatedImage.onload = async () => {
       if (generatedImage.dataset.freshGeneration === 'true') {
         generatedImage.dataset.freshGeneration = 'false';
-        
+
         loadingSpinner.style.display = 'none';
         generatedImage.style.display = 'block';
         placeholderText.style.display = 'none';
         saveButton.style.display = 'block';
         addGalleryButton.style.display = 'block';
         this.currentImage = generatedImage;
-        
+
         try {
           const galleryEntry = await room.collection('gallery_images').create({
             prompt: fullPrompt,
@@ -97,10 +97,10 @@ export const Editor = {
               username: room.party.client.username
             }]
           });
-          
+
           generatedImage.dataset.galleryId = galleryEntry.id;
           this.setupImageEditor();
-          
+
         } catch (error) {
           console.error('Error processing generated image:', error);
           showNotification('Failed to process generated image. Please try again.', 'error');
@@ -137,7 +137,9 @@ export const Editor = {
 
     fillImagePrompt.style.display = 'none';
 
+    // Ensure event listener is only added once
     if (!canvas.hasEventListener) {
+      Selection.init(); // Initialize or re-initialize here to ensure bindings
       canvas.addEventListener('click', Selection.handleCanvasClick);
       canvas.hasEventListener = true;
     }
@@ -145,7 +147,7 @@ export const Editor = {
 
   async generateSelectionFill() {
     if (!Selection.current || !this.currentImage) return;
-    
+
     const prompt = document.getElementById('selectionPromptInput').value.trim();
     if (!prompt) {
       showNotification('Please enter a prompt for the selected region', 'error');
@@ -163,7 +165,7 @@ export const Editor = {
     generatedImage.crossOrigin = 'anonymous';
     generatedImage.style.display = 'none';
     generatedImage.dataset.freshFill = 'true';
-    
+
     generatedImage.src = fullPrompt;
     generatedImage.alt = fullPrompt;
 
@@ -196,20 +198,20 @@ export const Editor = {
     const prefixSelect = document.getElementById('prefixPrompt');
     const suffixSelect = document.getElementById('suffixPrompt');
     const fullPrompt = `${prefixSelect.value}${promptInput.value.trim()}${suffixSelect.value}`;
-    
+
     try {
-      const sourceImage = this.galleryImages.find(img => 
+      const sourceImage = this.galleryImages.find(img =>
         img.imageUrl === this.currentImage.src
       );
-      
+
       let promptHistory = [];
-      
+
       if (sourceImage) {
         await room.collection('gallery_images').update(sourceImage.id, {
           uses: (sourceImage.uses || 0) + 1,
           views: (sourceImage.views || 0) + 1
         });
-        
+
         // Get existing prompt history if any
         promptHistory = [...(sourceImage.promptHistory || [{
           prompt: sourceImage.prompt,
@@ -217,7 +219,7 @@ export const Editor = {
           username: sourceImage.username
         }])];
       }
-      
+
       // Add the new edit to prompt history
       promptHistory.push({
         prompt: fullPrompt,
@@ -229,10 +231,10 @@ export const Editor = {
       // Convert canvas to blob
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
       const file = new File([blob], 'gallery-image.png', { type: 'image/png' });
-      
+
       // Upload image
       const imageUrl = await websim.upload(file);
-      
+
       // Create new gallery entry
       const galleryEntry = await room.collection('gallery_images').create({
         prompt: fullPrompt,
@@ -248,9 +250,9 @@ export const Editor = {
       // Update current image reference
       this.currentImage.src = imageUrl;
       this.currentImage.dataset.galleryId = galleryEntry.id;
-      
+
       showNotification('Image successfully added to gallery!', 'success');
-      
+
     } catch (error) {
       console.error('Error adding to gallery:', error);
       showNotification('Failed to add image to gallery. Please try again.', 'error');
@@ -261,7 +263,7 @@ export const Editor = {
     const imageContainer = document.getElementById('imageContainer');
     const existingImages = imageContainer.querySelectorAll('img');
     existingImages.forEach(img => img.remove());
-  
+
     const generatedImage = document.createElement('img');
     generatedImage.id = `generatedImage_${Date.now()}`;
     generatedImage.className = 'generated-image';
@@ -269,12 +271,12 @@ export const Editor = {
     generatedImage.crossOrigin = 'anonymous';
     generatedImage.src = image.imageUrl;
     generatedImage.alt = image.prompt;
-  
+
     imageContainer.appendChild(generatedImage);
     this.currentImage = generatedImage;
     document.getElementById('saveButton').style.display = 'block';
     document.getElementById('addGalleryButton').style.display = 'block';
-  
+
     generatedImage.onload = () => {
       this.setupImageEditor();
     };
