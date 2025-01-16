@@ -131,13 +131,13 @@ export const Gallery = {
     if (!image.promptHistory || !image.promptHistory.length) {
       return `
         <div class="prompt-history">
-          <div class="prompt-history-header">
+          <div class="prompt-history-header" onclick="Gallery.togglePromptHistory(this)">
             <span>Prompt History (1)</span>
             <svg class="expand-icon" width="12" height="12" viewBox="0 0 12 12">
               <path fill="currentColor" d="M2 4h8L6 8 2 4z"/>
             </svg>
           </div>
-          <div class="prompt-history-entries">
+          <div class="prompt-history-entries" style="display: none;">
             <div class="prompt-history-entry">
               <div>Original prompt: ${image.prompt}</div>
               <div class="by-user">by <span class="username-link" onclick="Gallery.showUserGallery('${image.username}')">${image.username}</span></div>
@@ -150,13 +150,13 @@ export const Gallery = {
 
     return `
       <div class="prompt-history">
-        <div class="prompt-history-header">
+        <div class="prompt-history-header" onclick="Gallery.togglePromptHistory(this)">
           <span>Prompt History (${image.promptHistory.length})</span>
           <svg class="expand-icon" width="12" height="12" viewBox="0 0 12 12">
             <path fill="currentColor" d="M2 4h8L6 8 2 4z"/>
           </svg>
         </div>
-        <div class="prompt-history-entries">
+        <div class="prompt-history-entries" style="display: none;">
           ${image.promptHistory.map((entry, index) => `
             <div class="prompt-history-entry">
               <div>
@@ -173,6 +173,13 @@ export const Gallery = {
         </div>
       </div>
     `;
+  },
+
+  togglePromptHistory(header) {
+    const historyDiv = header.closest('.prompt-history');
+    historyDiv.classList.toggle('expanded');
+    const entriesDiv = historyDiv.querySelector('.prompt-history-entries');
+    entriesDiv.style.display = historyDiv.classList.contains('expanded') ? 'block' : 'none';
   },
 
   async loadImage(id) {
@@ -198,11 +205,6 @@ export const Gallery = {
   changePage(delta) {
     this.currentPage += delta;
     this.render();
-  },
-
-  togglePromptHistory(header) {
-    const historyDiv = header.closest('.prompt-history');
-    historyDiv.classList.toggle('expanded');
   },
 
   showUserGallery(username) {

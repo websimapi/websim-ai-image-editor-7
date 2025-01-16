@@ -71,9 +71,9 @@ h1 {
 }
 
 .prompt-history-entries {
-  display: none;
   padding: 8px 12px;
   font-size: 0.9em;
+  display: none;
 }
 
 .prompt-history.expanded .prompt-history-entries {
