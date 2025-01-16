@@ -140,13 +140,19 @@ export const Selection = {
     const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
     const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
-    if (Selection.isShiftPressed || Selection.isCtrlPressed) {
-      if (Selection.current) {
+    if (Selection.current) {
+      if (Selection.isCtrlPressed) {
+        // Remove from selection if Ctrl is pressed
+        for (let i = 0; i < Selection.current.length; i++) {
+          if (newSelection[i]) {
+            Selection.current[i] = false;
+          }
+        }
+      } else if (Selection.isShiftPressed) {
+        // Add to selection if Shift is pressed
         for (let i = 0; i < Selection.current.length; i++) {
           Selection.current[i] = Selection.current[i] || newSelection[i];
         }
-      } else {
-        Selection.current = newSelection;
       }
     } else {
       Selection.current = newSelection;
@@ -165,56 +171,104 @@ export const Selection = {
     const startR = pixels[startPos];
     const startG = pixels[startPos + 1];
     const startB = pixels[startPos + 2];
-    const stack = [[startX, startY]];
     
-    while (stack.length) {
-      const [x, y] = stack.pop();
+    // Use a queue for breadth-first search
+    const queue = [[startX, startY]];
+    let queueIndex = 0;
+
+    const isWithinTolerance = (pos) => {
+      const r = pixels[pos];
+      const g = pixels[pos + 1];
+      const b = pixels[pos + 2];
+      const colorDiff = Math.sqrt(
+        Math.pow(r - startR, 2) + 
+        Math.pow(g - startG, 2) + 
+        Math.pow(b - startB, 2)
+      );
+      return colorDiff <= tolerance;
+    };
+
+    while (queueIndex < queue.length) {
+      const [x, y] = queue[queueIndex++];
       const pos = y * width + x;
+      
       if (x < 0 || x >= width || y < 0 || y >= height || visited[pos]) {
         continue;
       }
+
+      visited[pos] = 1;
       const pixelPos = pos * 4;
-      const r = pixels[pixelPos];
-      const g = pixels[pixelPos + 1];
-      const b = pixels[pixelPos + 2];
-      const colorDiff = Math.sqrt(Math.pow(r - startR, 2) + Math.pow(g - startG, 2) + Math.pow(b - startB, 2));
-      if (colorDiff <= tolerance) {
-        visited[pos] = 1;
+
+      if (isWithinTolerance(pixelPos)) {
         selected[pos] = 1;
-        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+        
+        // Check 8-connected neighbors
+        const neighbors = [
+          [x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1],
+          [x + 1, y + 1], [x - 1, y - 1], [x + 1, y - 1], [x - 1, y + 1]
+        ];
+
+        for (const [nx, ny] of neighbors) {
+          const npos = ny * width + nx;
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height && !visited[npos]) {
+            queue.push([nx, ny]);
+          }
+        }
       }
     }
+
+    // Smooth the selection edges
+    this.smoothSelection(selected, width, height);
     return selected;
+  },
+
+  smoothSelection(selected, width, height) {
+    const smoothed = new Uint8Array(selected);
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const pos = y * width + x;
+        let count = 0;
+        // Check 8-connected neighbors
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (selected[(y + dy) * width + (x + dx)]) {
+              count++;
+            }
+          }
+        }
+        // Smooth based on neighbor count
+        smoothed[pos] = count >= 4 ? 1 : 0;
+      }
+    }
+    for (let i = 0; i < selected.length; i++) {
+      selected[i] = smoothed[i];
+    }
   },
 
   drawOverlay() {
     const canvas = document.getElementById('editCanvas');
     const ctx = canvas.getContext('2d');
     ctx.putImageData(Editor.originalImageData, 0, 0);
+    
     if (!this.current) return;
     
     const width = canvas.width;
     const height = canvas.height;
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2;
+    const selectionOverlay = ctx.createImageData(width, height);
+    const overlayData = selectionOverlay.data;
     
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const pos = y * width + x;
-        if (this.current[pos]) {
-          const isEdge = x > 0 && !this.current[pos - 1] || 
-                        x < width - 1 && !this.current[pos + 1] || 
-                        y > 0 && !this.current[pos - width] || 
-                        y < height - 1 && !this.current[pos + width];
-          if (isEdge) {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(x - 1, y - 1, 3, 3);
-            ctx.strokeStyle = 'black';
-            ctx.strokeRect(x - 1, y - 1, 3, 3);
-          }
-        }
+    // Create semi-transparent overlay
+    for (let i = 0; i < this.current.length; i++) {
+      if (this.current[i]) {
+        const pos = i * 4;
+        overlayData[pos] = 255;     // R
+        overlayData[pos + 1] = 255; // G
+        overlayData[pos + 2] = 255; // B
+        overlayData[pos + 3] = 64;  // A (25% opacity)
       }
     }
+    
+    ctx.putImageData(selectionOverlay, 0, 0);
   },
 
   async applyGeneratedImage(generatedImage, canvas) {
