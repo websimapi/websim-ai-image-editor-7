@@ -205,9 +205,9 @@ export const Editor = {
       const file = new File([blob], 'edited-image.png', { type: 'image/png' });
       const imageUrl = await websim.upload(file);
       
-      const sourceId = this.currentImage?.dataset?.galleryId;
-      const sourceImage = sourceId ? 
-        this.galleryImages.find(img => img.id === sourceId) : null;
+      const sourceImage = this.galleryImages.find(img => 
+        img.imageUrl === this.currentImage.src
+      );
 
       const promptHistory = this.buildPromptHistory(sourceImage, prompt);
       
@@ -222,7 +222,6 @@ export const Editor = {
         sourceImageId: sourceImage?.id
       });
 
-      // Update current image reference
       this.currentImage.src = imageUrl;
       this.currentImage.dataset.galleryId = newEntry.id;
       
@@ -240,15 +239,12 @@ export const Editor = {
       username: sourceImage?.username
     }];
 
-    const newEntry = {
+    return [...baseHistory, {
       prompt: newPrompt,
       timestamp: new Date().toISOString(),
       username: room.party.client.username,
       type: 'gallery-add'
-    };
-
-    // Only add base history if it exists and is valid
-    return sourceImage ? [...baseHistory, newEntry] : [newEntry];
+    }];
   },
 
   loadGalleryImage(image) {
