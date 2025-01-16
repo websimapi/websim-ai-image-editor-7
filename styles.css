@@ -850,7 +850,3 @@ input:disabled {
     justify-content: center;
   }
 }
-
-.image-container {
-  position: relative;  /* Add this to properly position the overlay canvas */
-}

@@ -6,28 +6,9 @@ export const Selection = {
   current: null,
   isShiftPressed: false,
   isCtrlPressed: false,
-  overlayContext: null,
-  overlayCanvas: null,
-
-  initOverlay() {
-    const canvas = document.getElementById('editCanvas');
-    if (!this.overlayCanvas) {
-      this.overlayCanvas = document.createElement('canvas');
-      this.overlayCanvas.style.position = 'absolute';
-      this.overlayCanvas.style.pointerEvents = 'none';
-      this.overlayCanvas.style.top = '0';
-      this.overlayCanvas.style.left = '0';
-      canvas.parentElement.appendChild(this.overlayCanvas);
-    }
-    
-    // Match overlay size to main canvas
-    this.overlayCanvas.width = canvas.width;
-    this.overlayCanvas.height = canvas.height;
-    this.overlayCanvas.style.width = canvas.style.width || '100%';
-    this.overlayCanvas.style.height = canvas.style.height || 'auto';
-    
-    this.overlayContext = this.overlayCanvas.getContext('2d');
-  },
+  isMouseDown: false,
+  lastX: null,
+  lastY: null,
 
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
@@ -54,53 +35,88 @@ export const Selection = {
     } else {
       fillImagePrompt.style.display = 'none';
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
-    }
-
-    // Initialize overlay when switching to magic wand
-    if (tool === 'magicWand') {
-      this.initOverlay();
+      
+      // Add mouse events for magic wand drag selection
+      if (tool === 'magicWand') {
+        this.setupDragEvents(canvas);
+      } else {
+        this.removeDragEvents(canvas);
+      }
     }
   },
 
-  handleCanvasClick(e) {
-    const canvas = document.getElementById('editCanvas');
+  setupDragEvents(canvas) {
+    canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+    canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+    canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+  },
+
+  removeDragEvents(canvas) {
+    canvas.removeEventListener('mousedown', this.handleMouseDown.bind(this));
+    canvas.removeEventListener('mousemove', this.handleMouseMove.bind(this));
+    canvas.removeEventListener('mouseup', this.handleMouseUp.bind(this));
+    canvas.removeEventListener('mouseleave', this.handleMouseUp.bind(this));
+  },
+
+  handleMouseDown = (e) => {
+    this.isMouseDown = true;
+    const canvas = e.target;
+    const rect = canvas.getBoundingClientRect();
+    this.lastX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    this.lastY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    this.handleSelection(e);
+  },
+
+  handleMouseMove = (e) => {
+    if (!this.isMouseDown) return;
+    this.handleSelection(e);
+  },
+
+  handleMouseUp = () => {
+    this.isMouseDown = false;
+    this.lastX = null;
+    this.lastY = null;
+  },
+
+  handleSelection(e) {
+    const canvas = e.target;
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
 
-    // Only reset selection if not using shift or ctrl
-    if (!Selection.isShiftPressed && !Selection.isCtrlPressed) {
-      Selection.current = null;
+    if (!this.isShiftPressed && !this.isCtrlPressed && !this.isMouseDown) {
+      this.current = null;
     }
 
-    const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-    const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
+    const imageData = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height);
+    const newSelection = this.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
-    if (Selection.isCtrlPressed) {
-      // Deselect the clicked area
-      if (Selection.current) {
-        for (let i = 0; i < Selection.current.length; i++) {
+    if (this.isCtrlPressed) {
+      // Deselect the region
+      if (this.current) {
+        for (let i = 0; i < this.current.length; i++) {
           if (newSelection[i]) {
-            Selection.current[i] = 0;
+            this.current[i] = 0;
           }
         }
       }
-    } else if (Selection.isShiftPressed) {
+    } else if (this.isShiftPressed || this.isMouseDown) {
       // Add to selection
-      if (Selection.current) {
-        for (let i = 0; i < Selection.current.length; i++) {
-          Selection.current[i] = Selection.current[i] || newSelection[i];
+      if (this.current) {
+        for (let i = 0; i < this.current.length; i++) {
+          this.current[i] = this.current[i] || newSelection[i];
         }
       } else {
-        Selection.current = newSelection;
+        this.current = newSelection;
       }
     } else {
       // New selection
-      Selection.current = newSelection;
+      this.current = newSelection;
     }
 
-    Selection.drawOverlay();
+    this.drawOverlay();
   },
 
   magicWandSelect(imageData, startX, startY, tolerance) {
@@ -136,60 +152,29 @@ export const Selection = {
   },
 
   drawOverlay() {
-    if (!this.overlayContext || !this.current) {
-      return;
-    }
-    
     const canvas = document.getElementById('editCanvas');
-    this.overlayContext.clearRect(0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext('2d');
+    ctx.putImageData(Editor.originalImageData, 0, 0);
+    if (!this.current) return;
     
     const width = canvas.width;
     const height = canvas.height;
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
     
-    // Create a semi-transparent highlight for selected areas
-    const imageData = this.overlayContext.createImageData(width, height);
-    const data = imageData.data;
-    
-    for (let i = 0; i < this.current.length; i++) {
-      if (this.current[i]) {
-        const offset = i * 4;
-        data[offset] = 255;     // R
-        data[offset + 1] = 255; // G
-        data[offset + 2] = 255; // B
-        data[offset + 3] = 40;  // A - semi-transparent
-      }
-    }
-    
-    this.overlayContext.putImageData(imageData, 0, 0);
-    
-    // Draw the outline
-    this.overlayContext.strokeStyle = 'white';
-    this.overlayContext.lineWidth = 2;
-    
-    // Find edges and draw outline
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const pos = y * width + x;
         if (this.current[pos]) {
-          const isEdge = 
-            x === 0 || 
-            x === width - 1 || 
-            y === 0 || 
-            y === height - 1 ||
-            !this.current[pos - 1] || // left
-            !this.current[pos + 1] || // right
-            !this.current[pos - width] || // top
-            !this.current[pos + width];   // bottom
-            
+          const isEdge = x > 0 && !this.current[pos - 1] || 
+                        x < width - 1 && !this.current[pos + 1] || 
+                        y > 0 && !this.current[pos - width] || 
+                        y < height - 1 && !this.current[pos + width];
           if (isEdge) {
-            // Draw a double-line effect for better visibility
-            this.overlayContext.strokeStyle = 'black';
-            this.overlayContext.lineWidth = 3;
-            this.overlayContext.strokeRect(x - 0.5, y - 0.5, 1, 1);
-            
-            this.overlayContext.strokeStyle = 'white';
-            this.overlayContext.lineWidth = 1;
-            this.overlayContext.strokeRect(x - 0.5, y - 0.5, 1, 1);
+            ctx.fillStyle = 'white';
+            ctx.fillRect(x - 1, y - 1, 3, 3);
+            ctx.strokeStyle = 'black';
+            ctx.strokeRect(x - 1, y - 1, 3, 3);
           }
         }
       }
@@ -240,9 +225,10 @@ export const Selection = {
 
   clearSelection() {
     this.current = null;
-    if (this.overlayContext) {
-      const canvas = document.getElementById('editCanvas');
-      this.overlayContext.clearRect(0, 0, canvas.width, canvas.height);
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    if (Editor.originalImageData) {
+      ctx.putImageData(Editor.originalImageData, 0, 0);
     }
   },
 
