@@ -40,15 +40,7 @@
       <div class="image-container" id="imageContainer">
         <div id="loadingSpinner" class="loading" style="display: none;"></div>
         <div id="placeholderText" class="placeholder-text">Enter a prompt to generate an image or load one from your device</div>
-        <div class="canvas-container">
-          <canvas id="editCanvas"></canvas>
-          <div class="zoom-controls">
-            <button class="zoom-button" id="zoomOut" title="Zoom Out">−</button>
-            <div class="zoom-level" id="zoomLevel">100%</div>
-            <button class="zoom-button" id="zoomIn" title="Zoom In">+</button>
-            <button class="zoom-button" id="zoomReset" title="Reset View">↺</button>
-          </div>
-        </div>
+        <canvas id="editCanvas"></canvas>
         <div class="editor-controls" id="editorControls">
           <div class="tool-group">
             <button class="tool-button" onclick="Selection.setTool('magicWand')" id="magicWandTool" data-tooltip="Magic Wand">

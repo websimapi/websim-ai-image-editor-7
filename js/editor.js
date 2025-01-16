@@ -7,92 +7,10 @@ export const Editor = {
   currentImage: null,
   originalImageData: null,
   galleryImages: [],
-  scale: 1,
-  panX: 0,
-  panY: 0,
-  isPanning: false,
-  lastX: 0,
-  lastY: 0,
 
   setup() {
     this.setupEventListeners();
     this.setupColorPicker();
-    this.setupZoomControls();
-  },
-
-  setupZoomControls() {
-    const canvas = document.getElementById('editCanvas');
-    
-    // Add zoom controls
-    canvas.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      const delta = e.deltaY < 0 ? 1.1 : 0.9;
-      this.zoom(delta, e.offsetX, e.offsetY);
-    });
-
-    // Add pan controls
-    canvas.addEventListener('mousedown', (e) => {
-      this.isPanning = true;
-      this.lastX = e.clientX;
-      this.lastY = e.clientY;
-      canvas.classList.add('panning');
-    });
-
-    window.addEventListener('mousemove', (e) => {
-      if (!this.isPanning) return;
-      const dx = e.clientX - this.lastX;
-      const dy = e.clientY - this.lastY;
-      this.panX += dx;
-      this.panY += dy;
-      this.lastX = e.clientX;
-      this.lastY = e.clientY;
-      this.updateTransform();
-    });
-
-    window.addEventListener('mouseup', () => {
-      this.isPanning = false;
-      canvas.classList.remove('panning');
-    });
-
-    // Add zoom buttons
-    document.getElementById('zoomIn').addEventListener('click', () => this.zoom(1.2));
-    document.getElementById('zoomOut').addEventListener('click', () => this.zoom(0.8));
-    document.getElementById('zoomReset').addEventListener('click', () => this.resetView());
-  },
-
-  zoom(delta, originX = null, originY = null) {
-    const canvas = document.getElementById('editCanvas');
-    const container = canvas.parentElement;
-    const oldScale = this.scale;
-    
-    this.scale *= delta;
-    this.scale = Math.min(Math.max(0.1, this.scale), 10); // Limit zoom range
-    
-    if (originX !== null && originY !== null) {
-      // Adjust pan to zoom toward cursor
-      const rect = canvas.getBoundingClientRect();
-      const x = originX - rect.left;
-      const y = originY - rect.top;
-      
-      this.panX += (x - this.panX) * (1 - delta);
-      this.panY += (y - this.panY) * (1 - delta);
-    }
-    
-    this.updateTransform();
-    document.getElementById('zoomLevel').textContent = `${Math.round(this.scale * 100)}%`;
-  },
-
-  updateTransform() {
-    const canvas = document.getElementById('editCanvas');
-    canvas.style.transform = `translate(${this.panX}px, ${this.panY}px) scale(${this.scale})`;
-  },
-
-  resetView() {
-    this.scale = 1;
-    this.panX = 0;
-    this.panY = 0;
-    this.updateTransform();
-    document.getElementById('zoomLevel').textContent = '100%';
   },
 
   async setupEventListeners() {
@@ -233,10 +151,9 @@ export const Editor = {
       this.currentImage.style.display = 'none';
       canvas.style.display = 'block';
       editorControls.style.display = 'flex';
-      this.resetView(); // Reset zoom/pan when loading new image
     } else {
       canvas.style.display = 'none';
-      editorControls.style.display = 'none';
+      editorControls.style.display = 'flex';
     }
 
     fillImagePrompt.style.display = 'none';
