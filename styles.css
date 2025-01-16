@@ -299,10 +299,6 @@ input:disabled {
   transform: rotate(180deg);
 }
 
-.magic-wand {
-  cursor: crosshair !important;
-}
-
 .sensitivity-control {
   display: flex;
   align-items: center;
@@ -316,7 +312,6 @@ input:disabled {
 .sensitivity-control label {
   font-size: 0.9em;
   white-space: nowrap;
-  color: white;
 }
 
 .sensitivity-slider {
