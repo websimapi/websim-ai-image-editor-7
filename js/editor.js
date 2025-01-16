@@ -113,7 +113,7 @@ export const Editor = {
 
   setupImageEditor() {
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const editorControls = document.getElementById('editorControls');
     const fillImagePrompt = document.getElementById('fillImagePrompt');
     const loadingSpinner = document.getElementById('loadingSpinner');
