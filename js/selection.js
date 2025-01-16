@@ -7,122 +7,81 @@ class MagicWand {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { willReadFrequently: true });
     this.tolerance = 32;
-    this.visited = new Set();
-    this.selection = new Set();
+    this.imageData = null;
+    this.width = 0;
+    this.height = 0;
+    this.pixelData = null;
+  }
+
+  cacheImageData() {
+    this.imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+    this.width = this.canvas.width;
+    this.height = this.canvas.height;
+    this.pixelData = this.imageData.data;
   }
 
   getPixel(x, y) {
-    if (x < 0 || x >= this.canvas.width || y < 0 || y >= this.canvas.height) {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
       return { r: 0, g: 0, b: 0, a: 0 };
     }
-    const imageData = this.ctx.getImageData(x, y, 1, 1).data;
+    const i = (y * this.width + x) * 4;
     return {
-      r: imageData[0],
-      g: imageData[1],
-      b: imageData[2],
-      a: imageData[3]
+      r: this.pixelData[i],
+      g: this.pixelData[i + 1],
+      b: this.pixelData[i + 2],
+      a: this.pixelData[i + 3]
     };
   }
 
   colorDifference(color1, color2) {
-    const labColor1 = this.rgbToLab(color1);
-    const labColor2 = this.rgbToLab(color2);
-    
-    return Math.sqrt(
-      Math.pow(labColor2.l - labColor1.l, 2) +
-      Math.pow(labColor2.a - labColor1.a, 2) +
-      Math.pow(labColor2.b - labColor1.b, 2)
-    );
-  }
-
-  rgbToLab(rgb) {
-    let r = rgb.r / 255;
-    let g = rgb.g / 255;
-    let b = rgb.b / 255;
-
-    r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
-    g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
-    b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
-
-    const x = (r * 0.4124 + g * 0.3576 + b * 0.1805) * 100;
-    const y = (r * 0.2126 + g * 0.7152 + b * 0.0722) * 100;
-    const z = (r * 0.0193 + g * 0.1192 + b * 0.9505) * 100;
-
-    const xn = 95.047;
-    const yn = 100.000;
-    const zn = 108.883;
-
-    const fx = x / xn > 0.008856 ? Math.pow(x / xn, 1/3) : (7.787 * x / xn) + 16/116;
-    const fy = y / yn > 0.008856 ? Math.pow(y / yn, 1/3) : (7.787 * y / yn) + 16/116;
-    const fz = z / zn > 0.008856 ? Math.pow(z / zn, 1/3) : (7.787 * z / zn) + 16/116;
-
-    return {
-      l: (116 * fy) - 16,
-      a: 500 * (fx - fy),
-      b: 200 * (fy - fz)
-    };
-  }
-
-  detectEdges(x, y) {
-    const sobelX = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]];
-    const sobelY = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]];
-    let gradientX = 0;
-    let gradientY = 0;
-
-    for(let i = -1; i <= 1; i++) {
-      for(let j = -1; j <= 1; j++) {
-        const pixel = this.getPixel(x + i, y + j);
-        const intensity = (pixel.r + pixel.g + pixel.b) / 3;
-        gradientX += intensity * sobelX[i + 1][j + 1];
-        gradientY += intensity * sobelY[i + 1][j + 1];
-      }
-    }
-
-    return Math.sqrt(gradientX * gradientX + gradientY * gradientY);
+    return Math.abs(color1.r - color2.r) +
+           Math.abs(color1.g - color2.g) +
+           Math.abs(color1.b - color2.b);
   }
 
   select(startX, startY) {
-    this.visited.clear();
-    this.selection.clear();
-    
+    this.cacheImageData();
+
+    const mask = new Uint8Array(this.width * this.height);
     const startColor = this.getPixel(startX, startY);
-    const queue = [{x: startX, y: startY}];
     
-    while(queue.length > 0) {
-      const current = queue.shift();
-      const key = `${current.x},${current.y}`;
-      
-      if(this.visited.has(key)) continue;
-      this.visited.add(key);
-      
-      const currentColor = this.getPixel(current.x, current.y);
-      const colorDiff = this.colorDifference(startColor, currentColor);
-      const edgeStrength = this.detectEdges(current.x, current.y);
-      
-      if(colorDiff <= this.tolerance && edgeStrength < 100) {
-        this.selection.add(key);
-        
-        const neighbors = [
-          {x: current.x - 1, y: current.y},
-          {x: current.x + 1, y: current.y},
-          {x: current.x, y: current.y - 1},
-          {x: current.x, y: current.y + 1}
-        ];
-        
-        for(const neighbor of neighbors) {
-          if(neighbor.x >= 0 && neighbor.x < this.canvas.width &&
-             neighbor.y >= 0 && neighbor.y < this.canvas.height) {
-            queue.push(neighbor);
+    const queue = new Int32Array(this.width * this.height * 2);
+    let queueLength = 2;
+    queue[0] = startX;
+    queue[1] = startY;
+    
+    const dx = [-1, 1, 0, 0];
+    const dy = [0, 0, -1, 1];
+
+    mask[startY * this.width + startX] = 1;
+
+    while (queueLength > 0) {
+      queueLength -= 2;
+      const x = queue[queueLength];
+      const y = queue[queueLength + 1];
+
+      for (let d = 0; d < 4; d++) {
+        const nx = x + dx[d];
+        const ny = y + dy[d];
+
+        if (nx >= 0 && nx < this.width && 
+            ny >= 0 && ny < this.height && 
+            !mask[ny * this.width + nx]) {
+          
+          const currentColor = this.getPixel(nx, ny);
+          const colorDiff = this.colorDifference(startColor, currentColor);
+
+          if (colorDiff <= this.tolerance * 3) { 
+            mask[ny * this.width + nx] = 1;
+            queue[queueLength] = nx;
+            queue[queueLength + 1] = ny;
+            queueLength += 2;
           }
         }
       }
     }
-    
-    return new Uint8Array(this.canvas.width * this.canvas.height).map((_, i) => {
-      const x = i % this.canvas.width;
-      const y = Math.floor(i / this.canvas.width);
-      return this.selection.has(`${x},${y}`) ? 1 : 0;
-    });
+
+    return mask;
   }
 }
 
@@ -131,6 +90,7 @@ export const Selection = {
   isShiftPressed: false,
   isCtrlPressed: false,
   magicWand: null,
+  selectionStartTime: 0,
 
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
@@ -168,6 +128,12 @@ export const Selection = {
   },
 
   handleCanvasClick(e) {
+    const now = Date.now();
+    if (now - this.selectionStartTime < 100) { 
+      return;
+    }
+    this.selectionStartTime = now;
+
     const canvas = document.getElementById('editCanvas');
     const rect = canvas.getBoundingClientRect();
     const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
@@ -183,21 +149,23 @@ export const Selection = {
       Selection.current = null;
     }
 
-    const newSelection = Selection.magicWand.select(x, y);
-    
-    if (Selection.isShiftPressed || Selection.isCtrlPressed) {
-      if (Selection.current) {
-        for (let i = 0; i < Selection.current.length; i++) {
-          Selection.current[i] = Selection.current[i] || newSelection[i];
+    requestAnimationFrame(() => {
+      const newSelection = Selection.magicWand.select(x, y);
+      
+      if (Selection.isShiftPressed || Selection.isCtrlPressed) {
+        if (Selection.current) {
+          for (let i = 0; i < Selection.current.length; i++) {
+            Selection.current[i] = Selection.current[i] || newSelection[i];
+          }
+        } else {
+          Selection.current = newSelection;
         }
       } else {
         Selection.current = newSelection;
       }
-    } else {
-      Selection.current = newSelection;
-    }
 
-    Selection.drawOverlay();
+      Selection.drawOverlay();
+    });
   },
 
   drawOverlay() {
@@ -210,27 +178,34 @@ export const Selection = {
     const width = canvas.width;
     const height = canvas.height;
     
-    // Draw selection edges
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2;
+    const overlayCanvas = document.createElement('canvas');
+    overlayCanvas.width = width;
+    overlayCanvas.height = height;
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const overlayData = overlayCtx.createImageData(width, height);
     
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const pos = y * width + x;
         if (this.current[pos]) {
-          const isEdge = x > 0 && !this.current[pos - 1] || 
-                        x < width - 1 && !this.current[pos + 1] || 
-                        y > 0 && !this.current[pos - width] || 
-                        y < height - 1 && !this.current[pos + width];
+          const isEdge = 
+            x === 0 || x === width - 1 || y === 0 || y === height - 1 ||
+            !this.current[pos - 1] || !this.current[pos + 1] ||
+            !this.current[pos - width] || !this.current[pos + width];
+            
           if (isEdge) {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(x - 1, y - 1, 3, 3);
-            ctx.strokeStyle = 'black';
-            ctx.strokeRect(x - 1, y - 1, 3, 3);
+            const i = pos * 4;
+            overlayData.data[i] = 255;     // R
+            overlayData.data[i + 1] = 255; // G
+            overlayData.data[i + 2] = 255; // B
+            overlayData.data[i + 3] = 255; // A
           }
         }
       }
     }
+    
+    overlayCtx.putImageData(overlayData, 0, 0);
+    ctx.drawImage(overlayCanvas, 0, 0);
   },
 
   fillSelection() {
@@ -433,7 +408,6 @@ export const Selection = {
   }
 };
 
-// Set up sensitivity slider handler
 document.getElementById('sensitivitySlider')?.addEventListener('input', (e) => {
   document.getElementById('sensitivityValue').textContent = e.target.value;
   if (Selection.magicWand) {
