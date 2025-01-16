@@ -1,4 +1,6 @@
-const Selection = {
+import { Editor } from './editor.js';
+
+export const Selection = {
   current: null,
   isShiftPressed: false,
   isCtrlPressed: false,

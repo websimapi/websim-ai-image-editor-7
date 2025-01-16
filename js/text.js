@@ -1,4 +1,7 @@
-const Text = {
+import { Editor } from './editor.js';
+import { room } from './room.js';
+
+export const Text = {
   currentPosition: null,
   preview: null,
 
@@ -95,5 +98,3 @@ const Text = {
     Text.currentPosition = null;
   }
 };
-
-export { Text };

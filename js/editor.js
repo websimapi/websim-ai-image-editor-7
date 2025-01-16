@@ -1,4 +1,8 @@
-const Editor = {
+import { room } from './room.js';
+import { Selection } from './selection.js';
+import { Gallery } from './gallery.js';
+
+export const Editor = {
   currentImage: null,
   originalImageData: null,
 

@@ -1,8 +1,10 @@
-const Gallery = {
+import { room } from './room.js';
+
+export const Gallery = {
   images: [],
   currentTab: 'recent',
   currentPage: 1,
-  itemsPerPage: 10,
+  itemsPerPage: 10, 
   currentEditId: null,
   currentSearch: '',
   currentUserFilter: null,
