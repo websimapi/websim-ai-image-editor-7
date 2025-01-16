@@ -1,226 +1,36 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: linear-gradient(135deg, #1a1a2e, #16213e);
-  color: white;
-  font-family: Arial, sans-serif;
-  padding: 2rem;
-}
-
-.container {
-  max-width: 1200px;
-  width: 95%;
-  text-align: center;
-  padding: 10px;
-  margin: 0 auto;
-}
-
-h1 {
-  margin-bottom: 2rem;
-  font-size: 2.5rem;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-}
-
-.color-display {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 10px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 5px;
-  margin-left: 10px;
-  flex-wrap: wrap;
-  width: 100%;
-  justify-content: center;
-}
-
-.prompt-history {
-  margin: 8px 0;
-  border-radius: 4px;
-  overflow: hidden;
-  background: rgba(255,255,255,0.05);
-}
-
-.prompt-history-header {
-  padding: 8px 12px;
-  background: rgba(0,0,0,0.2);
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  user-select: none;
-}
-
-.prompt-history-header:hover {
-  background: rgba(0,0,0,0.3);
-}
-
-.prompt-history-header .expand-icon {
-  transition: transform 0.2s;
-}
-
-.prompt-history.expanded .expand-icon {
-  transform: rotate(180deg);
-}
-
-.prompt-history-entries {
-  padding: 8px 12px;
-  font-size: 0.9em;
-  display: none;
-}
-
-.prompt-history.expanded .prompt-history-entries {
-  display: block;
-}
-
-.prompt-history-entry {
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.prompt-history-entry:last-child {
-  border-bottom: none;
-}
-
-.prompt-history-entry .timestamp {
-  font-size: 0.85em;
-  color: rgba(255,255,255,0.5);
-  margin-top: 4px;
-}
-
-.gallery-item-controls {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-
-.gallery-item-controls button {
-  width: 32px;
-  height: 32px;
-  min-width: unset;
-  padding: 6px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.gallery-item-controls .edit-button {
-  background: #2196F3;
-}
-
-.gallery-item-controls .delete-button {
-  background: #f44336;
-}
-
-.gallery-item-controls button:hover {
-  transform: scale(1.1);
-  filter: brightness(1.1);
-}
-
-.gallery-item-controls button svg {
-  width: 16px;
-  height: 16px;
-  fill: currentColor;
-}
-
-.notification {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 24px;
-  border-radius: 6px;
-  color: white;
-  font-size: 0.9rem;
-  z-index: 1000;
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
-  max-width: 80%;
-  text-align: center;
-  pointer-events: none;
-}
-
-.notification.show {
-  opacity: 1;
-}
-
-.notification.success {
-  background: rgba(76, 175, 80, 0.9);
-}
-
-.notification.error {
-  background: rgba(244, 67, 54, 0.9);
-}
-
-.notification.info {
-  background: rgba(33, 150, 243, 0.9);
-}
-
 .tool-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  pointer-events: none;
+  background: #999;
 }
 
-.project-history {
+.tool-button:disabled:hover {
+  transform: none;
+  background: #999;
+}
+
+.history-panel {
   margin-top: 1rem;
-  background: rgba(255,255,255,0.05);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.project-history-header {
-  padding: 0.8rem;
-  background: rgba(0,0,0,0.2);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-}
-
-.project-history-content {
-  padding: 0.8rem;
-  display: none;
-}
-
-.project-history.expanded .project-history-content {
-  display: block;
+  padding: 0.5rem;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .history-entry {
   padding: 0.5rem;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  margin: 0.25rem 0;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-.history-entry:last-child {
-  border-bottom: none;
+.history-entry:hover {
+  background: rgba(255,255,255,0.1);
 }
 
-.history-entry .timestamp {
-  font-size: 0.8rem;
-  color: rgba(255,255,255,0.6);
-}
-
-.history-entry .action {
-  font-weight: bold;
-}
-
-.history-entry .metadata {
-  font-size: 0.9rem;
-  color: rgba(255,255,255,0.8);
-  margin-top: 0.3rem;
+.history-entry.current {
+  background: rgba(33,150,243,0.3);
 }
