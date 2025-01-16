@@ -141,12 +141,16 @@ export const Selection = {
     const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
     if (Selection.current) {
-      for (let i = 0; i < Selection.current.length; i++) {
-        if (Selection.isCtrlPressed) {
-          // Remove from selection when CTRL is pressed
-          Selection.current[i] = Selection.current[i] && !newSelection[i];
-        } else if (Selection.isShiftPressed) {
-          // Add to selection when Shift is pressed
+      if (Selection.isCtrlPressed) {
+        // If CTRL is pressed, remove the selected region
+        for (let i = 0; i < Selection.current.length; i++) {
+          if (newSelection[i]) {
+            Selection.current[i] = false;
+          }
+        }
+      } else if (Selection.isShiftPressed) {
+        // If SHIFT is pressed, add to selection
+        for (let i = 0; i < Selection.current.length; i++) {
           Selection.current[i] = Selection.current[i] || newSelection[i];
         }
       }
