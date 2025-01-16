@@ -95,6 +95,54 @@ export const Selection = {
     ] : [0, 0, 0];
   },
 
+  drawOverlay() {
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Reset to original image first
+    ctx.putImageData(Editor.originalImageData, 0, 0);
+    
+    if (!this.current) return;
+    
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Create a temporary canvas for the selection overlay
+    const overlayCanvas = document.createElement('canvas');
+    overlayCanvas.width = width;
+    overlayCanvas.height = height;
+    const overlayCtx = overlayCanvas.getContext('2d');
+    
+    // Draw selection outline on overlay canvas
+    overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    overlayCtx.lineWidth = 1;
+    
+    // Find and draw edges
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pos = y * width + x;
+        if (this.current[pos]) {
+          const isEdge = 
+            (x === 0 || !this.current[pos - 1]) || // left edge
+            (x === width - 1 || !this.current[pos + 1]) || // right edge
+            (y === 0 || !this.current[pos - width]) || // top edge
+            (y === height - 1 || !this.current[pos + width]); // bottom edge
+          
+          if (isEdge) {
+            overlayCtx.fillStyle = 'white';
+            overlayCtx.fillRect(x, y, 1, 1);
+            overlayCtx.strokeStyle = 'black';
+            overlayCtx.strokeRect(x, y, 1, 1);
+          }
+        }
+      }
+    }
+    
+    // Composite the overlay onto the main canvas
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(overlayCanvas, 0, 0);
+  },
+
   clearSelection() {
     this.current = null;
     const canvas = document.getElementById('editCanvas');
@@ -104,66 +152,42 @@ export const Selection = {
     }
   },
 
-  setTool(tool) {
-    this.currentTool = tool;
-    document.querySelectorAll('.tool-button').forEach(btn => 
-      btn.classList.toggle('active', btn.id === `${tool}Tool`)
-    );
-
-    const fillImagePrompt = document.getElementById('fillImagePrompt');
-    const sensitivityControl = document.getElementById('sensitivityControl');
-    
-    fillImagePrompt.style.display = tool === 'fillWithImage' ? 'flex' : 'none';
-    sensitivityControl.style.display = tool === 'magicWand' ? 'flex' : 'none';
-
-    if (this.current) {
-      switch (tool) {
-        case 'fillSelection':
-          this.processSelection('fill');
-          break;
-        case 'setAlpha':
-          this.processSelection('alpha');
-          break;
-      }
-    }
-  },
-
   handleCanvasClick(e) {
     const canvas = document.getElementById('editCanvas');
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     
-    // If no current selection and not adding (shift) or subtracting (ctrl), create new selection
-    if (!Selection.current && !Selection.isShiftPressed && !Selection.isCtrlPressed) {
-      Selection.current = new Uint8Array(canvas.width * canvas.height);
-    }
-
     const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
-    const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const imageData = Editor.originalImageData; // Use original image data for selection
     const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
-    if (Selection.current) {
-      if (Selection.isCtrlPressed) {
-        // Subtract from selection when CTRL is pressed
-        for (let i = 0; i < Selection.current.length; i++) {
+    // If CTRL is pressed, remove the selection area
+    if (Selection.isCtrlPressed) {
+      if (Selection.current) {
+        for (let i = 0; i < newSelection.length; i++) {
           if (newSelection[i]) {
             Selection.current[i] = 0;
           }
         }
-      } else if (Selection.isShiftPressed) {
-        // Add to selection when Shift is pressed
-        for (let i = 0; i < Selection.current.length; i++) {
-          Selection.current[i] = Selection.current[i] || newSelection[i];
-        }
-      } else {
-        // Replace selection when no modifier key is pressed
-        Selection.current = newSelection;
       }
     } else {
-      Selection.current = newSelection;
+      // If no current selection or not holding shift, create new selection
+      if (!Selection.current || !Selection.isShiftPressed) {
+        Selection.current = new Uint8Array(canvas.width * canvas.height);
+      }
+      
+      // Add to selection
+      if (Selection.isShiftPressed) {
+        for (let i = 0; i < newSelection.length; i++) {
+          Selection.current[i] |= newSelection[i];
+        }
+      } else {
+        Selection.current = newSelection;
+      }
     }
 
+    // Redraw the selection overlay
     Selection.drawOverlay();
   },
 
@@ -197,36 +221,6 @@ export const Selection = {
       }
     }
     return selected;
-  },
-
-  drawOverlay() {
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.putImageData(Editor.originalImageData, 0, 0);
-    if (!this.current) return;
-    
-    const width = canvas.width;
-    const height = canvas.height;
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2;
-    
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const pos = y * width + x;
-        if (this.current[pos]) {
-          const isEdge = x > 0 && !this.current[pos - 1] || 
-                        x < width - 1 && !this.current[pos + 1] || 
-                        y > 0 && !this.current[pos - width] || 
-                        y < height - 1 && !this.current[pos + width];
-          if (isEdge) {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(x - 1, y - 1, 3, 3);
-            ctx.strokeStyle = 'black';
-            ctx.strokeRect(x - 1, y - 1, 3, 3);
-          }
-        }
-      }
-    }
   },
 
   async applyGeneratedImage(generatedImage, canvas) {
@@ -296,6 +290,30 @@ export const Selection = {
         Selection.drawOverlay();
       }
     });
+  },
+
+  setTool(tool) {
+    this.currentTool = tool;
+    document.querySelectorAll('.tool-button').forEach(btn => 
+      btn.classList.toggle('active', btn.id === `${tool}Tool`)
+    );
+
+    const fillImagePrompt = document.getElementById('fillImagePrompt');
+    const sensitivityControl = document.getElementById('sensitivityControl');
+    
+    fillImagePrompt.style.display = tool === 'fillWithImage' ? 'flex' : 'none';
+    sensitivityControl.style.display = tool === 'magicWand' ? 'flex' : 'none';
+
+    if (this.current) {
+      switch (tool) {
+        case 'fillSelection':
+          this.processSelection('fill');
+          break;
+        case 'setAlpha':
+          this.processSelection('alpha');
+          break;
+      }
+    }
   },
 };
 
