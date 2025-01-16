@@ -175,13 +175,6 @@ export const Editor = {
     document.body.appendChild(generatedImage);
   },
 
-  resetImage() {
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.putImageData(this.originalImageData, 0, 0);
-    Selection.clear();
-  },
-
   saveImage() {
     const canvas = document.getElementById('editCanvas');
     const link = document.createElement('a');
