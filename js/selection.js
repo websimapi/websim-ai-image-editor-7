@@ -6,211 +6,32 @@ export const Selection = {
   current: null,
   isShiftPressed: false,
   isCtrlPressed: false,
-  currentTool: null,
 
-  async processSelection(actionType, params = {}) {
-    if (!this.current || !Editor.currentImage) {
-      showNotification('Please make a selection first', 'error');
-      return;
-    }
-
+  setTool(tool) {
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = imageData.data;
-
-    switch (actionType) {
-      case 'fill':
-        const color = document.getElementById('colorPicker').value;
-        const [r, g, b] = this.hexToRgb(color);
-        this.applyToSelection((pos) => {
-          pixels[pos] = r;
-          pixels[pos + 1] = g;
-          pixels[pos + 2] = b;
-        });
-        break;
-
-      case 'alpha':
-        this.applyToSelection((pos) => {
-          pixels[pos + 3] = 0;
-        });
-        break;
-
-      case 'image':
-        await this.fillWithGeneratedImage(params.prompt);
-        return;
+    const fillImagePrompt = document.getElementById('fillImagePrompt');
+    const sensitivityControl = document.getElementById('sensitivityControl');
+    
+    document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+    
+    const toolButton = document.getElementById(`${tool}Tool`);
+    if (toolButton) {
+      toolButton.classList.add('active');
     }
 
-    ctx.putImageData(imageData, 0, 0);
-    Editor.originalImageData = imageData;
-  },
+    sensitivityControl.style.display = tool === 'magicWand' ? 'flex' : 'none';
 
-  applyToSelection(callback) {
-    for (let i = 0; i < this.current.length; i++) {
-      if (this.current[i]) {
-        callback(i * 4);
-      }
-    }
-  },
-
-  async fillWithGeneratedImage(prompt) {
-    if (!prompt) {
-      showNotification('Please enter a prompt for the selected region', 'error');
-      return;
-    }
-
-    const prefixSelect = document.getElementById('prefixPrompt');
-    const suffixSelect = document.getElementById('suffixPrompt');
-    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
-
-    try {
-      const canvas = document.getElementById('editCanvas');
-      const loadingSpinner = document.getElementById('loadingSpinner');
-      loadingSpinner.style.display = 'block';
-
-      // Create a temporary image element
-      const generatedImage = document.createElement('img');
-      generatedImage.crossOrigin = 'anonymous';
-      
-      // Create a promise to handle image loading
-      await new Promise((resolve, reject) => {
-        generatedImage.onload = resolve;
-        generatedImage.onerror = reject;
-        generatedImage.src = fullPrompt;
-      });
-
-      // Find bounds of selection
-      const ctx = canvas.getContext('2d');
-      let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
-
-      for (let y = 0; y < canvas.height; y++) {
-        for (let x = 0; x < canvas.width; x++) {
-          const pos = y * canvas.width + x;
-          if (this.current[pos]) {
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
-          }
-        }
-      }
-
-      // Create a temporary canvas for scaling the generated image
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      const selectionWidth = maxX - minX + 1;
-      const selectionHeight = maxY - minY + 1;
-      
-      tempCanvas.width = selectionWidth;
-      tempCanvas.height = selectionHeight;
-      
-      // Draw and scale the generated image to match selection size
-      tempCtx.drawImage(generatedImage, 0, 0, selectionWidth, selectionHeight);
-      
-      // Get the image data
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const pixels = imageData.data;
-      const scaledImageData = tempCtx.getImageData(0, 0, selectionWidth, selectionHeight);
-      const scaledPixels = scaledImageData.data;
-
-      // Apply the generated image to the selected area
-      for (let y = minY; y <= maxY; y++) {
-        for (let x = minX; x <= maxX; x++) {
-          const pos = y * canvas.width + x;
-          if (this.current[pos]) {
-            const scaledX = x - minX;
-            const scaledY = y - minY;
-            const scaledPos = (scaledY * selectionWidth + scaledX) * 4;
-            const targetPos = pos * 4;
-            
-            pixels[targetPos] = scaledPixels[scaledPos];
-            pixels[targetPos + 1] = scaledPixels[scaledPos + 1];
-            pixels[targetPos + 2] = scaledPixels[scaledPos + 2];
-            pixels[targetPos + 3] = scaledPixels[scaledPos + 3];
-          }
-        }
-      }
-
-      // Update canvas with new image data
-      ctx.putImageData(imageData, 0, 0);
-      Editor.originalImageData = imageData;
-      
-      // Hide loading spinner and prompt input
-      loadingSpinner.style.display = 'none';
-      document.getElementById('fillImagePrompt').style.display = 'none';
-      
-      showNotification('Selection filled successfully', 'success');
-
-    } catch (error) {
-      console.error('Error in image fill:', error);
-      showNotification('Failed to fill image. Please try again.', 'error');
-      document.getElementById('loadingSpinner').style.display = 'none';
-    }
-  },
-
-  hexToRgb(hex) {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? [
-      parseInt(result[1], 16),
-      parseInt(result[2], 16),
-      parseInt(result[3], 16)
-    ] : [0, 0, 0];
-  },
-
-  drawOverlay() {
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    // Reset to original image first
-    ctx.putImageData(Editor.originalImageData, 0, 0);
-    
-    if (!this.current) return;
-    
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // Create a temporary canvas for the selection overlay
-    const overlayCanvas = document.createElement('canvas');
-    overlayCanvas.width = width;
-    overlayCanvas.height = height;
-    const overlayCtx = overlayCanvas.getContext('2d');
-    
-    // Draw selection outline on overlay canvas
-    overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-    overlayCtx.lineWidth = 1;
-    
-    // Find and draw edges
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const pos = y * width + x;
-        if (this.current[pos]) {
-          const isEdge = 
-            (x === 0 || !this.current[pos - 1]) || // left edge
-            (x === width - 1 || !this.current[pos + 1]) || // right edge
-            (y === 0 || !this.current[pos - width]) || // top edge
-            (y === height - 1 || !this.current[pos + width]); // bottom edge
-          
-          if (isEdge) {
-            overlayCtx.fillStyle = 'white';
-            overlayCtx.fillRect(x, y, 1, 1);
-            overlayCtx.strokeStyle = 'black';
-            overlayCtx.strokeRect(x, y, 1, 1);
-          }
-        }
-      }
-    }
-    
-    // Composite the overlay onto the main canvas
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.drawImage(overlayCanvas, 0, 0);
-  },
-
-  clearSelection() {
-    this.current = null;
-    const canvas = document.getElementById('editCanvas');
-    if (canvas && Editor.originalImageData) {
-      const ctx = canvas.getContext('2d');
-      ctx.putImageData(Editor.originalImageData, 0, 0);
+    if (tool === 'fillSelection' && this.current) {
+      fillImagePrompt.style.display = 'none';
+      this.fillSelection();
+    } else if (tool === 'setAlpha' && this.current) {
+      fillImagePrompt.style.display = 'none';
+      this.setAlpha();
+    } else if (tool === 'fillWithImage' && this.current) {
+      fillImagePrompt.style.display = 'flex';
+    } else {
+      fillImagePrompt.style.display = 'none';
+      canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
     }
   },
 
@@ -219,37 +40,27 @@ export const Selection = {
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-    
     const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
-    const imageData = Editor.originalImageData; // Use original image data for selection
+
+    if (!Selection.isShiftPressed && !Selection.isCtrlPressed) {
+      Selection.current = null;
+    }
+
+    const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
     const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
-    // If CTRL is pressed, remove the selection area
-    if (Selection.isCtrlPressed) {
+    if (Selection.isShiftPressed || Selection.isCtrlPressed) {
       if (Selection.current) {
-        for (let i = 0; i < newSelection.length; i++) {
-          if (newSelection[i]) {
-            Selection.current[i] = 0;
-          }
-        }
-      }
-    } else {
-      // If no current selection or not holding shift, create new selection
-      if (!Selection.current || !Selection.isShiftPressed) {
-        Selection.current = new Uint8Array(canvas.width * canvas.height);
-      }
-      
-      // Add to selection
-      if (Selection.isShiftPressed) {
-        for (let i = 0; i < newSelection.length; i++) {
-          Selection.current[i] |= newSelection[i];
+        for (let i = 0; i < Selection.current.length; i++) {
+          Selection.current[i] = Selection.current[i] || newSelection[i];
         }
       } else {
         Selection.current = newSelection;
       }
+    } else {
+      Selection.current = newSelection;
     }
 
-    // Redraw the selection overlay
     Selection.drawOverlay();
   },
 
@@ -285,44 +96,238 @@ export const Selection = {
     return selected;
   },
 
-  setupSensitivitySlider() {
-    const slider = document.getElementById('sensitivitySlider');
-    const value = document.getElementById('sensitivityValue');
+  drawOverlay() {
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.putImageData(Editor.originalImageData, 0, 0);
+    if (!this.current) return;
     
-    slider.addEventListener('input', (e) => {
-      value.textContent = e.target.value;
-      if (Selection.current) {
-        Selection.drawOverlay();
-      }
-    });
-  },
-
-  setTool(tool) {
-    this.currentTool = tool;
-    document.querySelectorAll('.tool-button').forEach(btn => 
-      btn.classList.toggle('active', btn.id === `${tool}Tool`)
-    );
-
-    const fillImagePrompt = document.getElementById('fillImagePrompt');
-    const sensitivityControl = document.getElementById('sensitivityControl');
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
     
-    fillImagePrompt.style.display = tool === 'fillWithImage' ? 'flex' : 'none';
-    sensitivityControl.style.display = tool === 'magicWand' ? 'flex' : 'none';
-
-    if (this.current) {
-      switch (tool) {
-        case 'fillSelection':
-          this.processSelection('fill');
-          break;
-        case 'setAlpha':
-          this.processSelection('alpha');
-          break;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pos = y * width + x;
+        if (this.current[pos]) {
+          const isEdge = x > 0 && !this.current[pos - 1] || 
+                        x < width - 1 && !this.current[pos + 1] || 
+                        y > 0 && !this.current[pos - width] || 
+                        y < height - 1 && !this.current[pos + width];
+          if (isEdge) {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(x - 1, y - 1, 3, 3);
+            ctx.strokeStyle = 'black';
+            ctx.strokeRect(x - 1, y - 1, 3, 3);
+          }
+        }
       }
     }
   },
+
+  fillSelection() {
+    if (!this.current) return;
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    const color = document.getElementById('colorPicker').value;
+    const r = parseInt(color.substr(1, 2), 16);
+    const g = parseInt(color.substr(3, 2), 16);
+    const b = parseInt(color.substr(5, 2), 16);
+    
+    for (let i = 0; i < this.current.length; i++) {
+      if (this.current[i]) {
+        const pixelPos = i * 4;
+        pixels[pixelPos] = r;
+        pixels[pixelPos + 1] = g;
+        pixels[pixelPos + 2] = b;
+      }
+    }
+    
+    ctx.putImageData(imageData, 0, 0);
+    Editor.originalImageData = imageData;
+  },
+
+  setAlpha() {
+    if (!this.current) return;
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    
+    for (let i = 0; i < this.current.length; i++) {
+      if (this.current[i]) {
+        const pixelPos = i * 4;
+        pixels[pixelPos + 3] = 0;
+      }
+    }
+    
+    ctx.putImageData(imageData, 0, 0);
+    Editor.originalImageData = imageData;
+  },
+
+  clearSelection() {
+    this.current = null;
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    if (Editor.originalImageData) {
+      ctx.putImageData(Editor.originalImageData, 0, 0);
+    }
+  },
+
+  fillWithImage(prompt) {
+    if (!this.current || !Editor.currentImage) {
+      showNotification('Please make a selection first', 'error');
+      return;
+    }
+    
+    if (!prompt) {
+      showNotification('Please enter a prompt for the selected region', 'error');
+      return;
+    }
+
+    const prefixSelect = document.getElementById('prefixPrompt');
+    const suffixSelect = document.getElementById('suffixPrompt');
+    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
+
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    loadingSpinner.style.display = 'block';
+
+    const generatedImage = document.createElement('img');
+    generatedImage.crossOrigin = 'anonymous';
+    generatedImage.style.display = 'none';
+    generatedImage.dataset.freshFill = 'true';
+    
+    generatedImage.src = fullPrompt;
+    generatedImage.alt = fullPrompt;
+
+    generatedImage.onload = async () => {
+      if (generatedImage.dataset.freshFill !== 'true') return;
+      generatedImage.dataset.freshFill = 'false';
+      
+      loadingSpinner.style.display = 'none';
+      
+      const canvas = document.getElementById('editCanvas');
+      const ctx = canvas.getContext('2d');
+
+      // Find bounds of selection
+      let minX = canvas.width;
+      let minY = canvas.height;
+      let maxX = 0;
+      let maxY = 0;
+
+      for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+          const pos = y * canvas.width + x;
+          if (this.current[pos]) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+      }
+
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      const selectionWidth = maxX - minX + 1;
+      const selectionHeight = maxY - minY + 1;
+      
+      tempCanvas.width = selectionWidth;
+      tempCanvas.height = selectionHeight;
+      
+      tempCtx.drawImage(generatedImage, 0, 0, selectionWidth, selectionHeight);
+      
+      const scaledImageData = tempCtx.getImageData(0, 0, selectionWidth, selectionHeight);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const pos = y * canvas.width + x;
+          if (this.current[pos]) {
+            const scaledX = x - minX;
+            const scaledY = y - minY;
+            const scaledPos = (scaledY * selectionWidth + scaledX) * 4;
+            const targetPos = pos * 4;
+            
+            pixels[targetPos] = scaledImageData.data[scaledPos];
+            pixels[targetPos + 1] = scaledImageData.data[scaledPos + 1];
+            pixels[targetPos + 2] = scaledImageData.data[scaledPos + 2];
+            pixels[targetPos + 3] = scaledImageData.data[scaledPos + 3];
+          }
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      Editor.originalImageData = imageData;
+
+      // Handle gallery updates
+      let sourceImage;
+      if (Editor.currentImage.dataset.galleryId) {
+        sourceImage = Editor.galleryImages.find(img => img.id === Editor.currentImage.dataset.galleryId);
+      } else {
+        sourceImage = Editor.galleryImages.find(img => img.imageUrl === Editor.currentImage.src);
+      }
+      
+      if (sourceImage) {
+        try {
+          await room.collection('gallery_images').update(sourceImage.id, {
+            uses: (sourceImage.uses || 0) + 1
+          });
+          
+          const basePromptHistory = Editor.galleryImages.find(img => 
+            img.imageUrl === Editor.currentImage.src
+          )?.promptHistory || [{
+            prompt: sourceImage.prompt,
+            timestamp: sourceImage.created_at,
+            username: sourceImage.username
+          }];
+          
+          const promptHistory = [...basePromptHistory];
+          
+          promptHistory.push({
+            prompt: fullPrompt,
+            timestamp: new Date().toISOString(),
+            type: 'selection-fill',
+            username: room.party.client.username
+          });
+          
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+          const file = new File([blob], 'edited-image.png', { type: 'image/png' });
+          const imageUrl = await websim.upload(file);
+          
+          const newEntry = await room.collection('gallery_images').create({
+            prompt: fullPrompt,
+            title: fullPrompt,
+            imageUrl: imageUrl,
+            views: 0,
+            uses: 0,
+            modified: true,
+            promptHistory: promptHistory,
+            sourceImageId: sourceImage.id
+          });
+
+          Editor.currentImage.src = imageUrl;
+          Editor.currentImage.dataset.galleryId = newEntry.id;
+          
+        } catch (error) {
+          console.error('Error saving selection fill:', error);
+          showNotification('Failed to save selection fill. Please try again.', 'error');
+        }
+      }
+      
+      document.getElementById('fillImagePrompt').style.display = 'none';
+      generatedImage.remove();
+    };
+
+    document.body.appendChild(generatedImage);
+  }
 };
 
-// Add slider initialization to the window load event
-window.addEventListener('load', () => {
-  Selection.setupSensitivitySlider();
+// Add event listener for sensitivity slider
+document.getElementById('sensitivitySlider')?.addEventListener('input', (e) => {
+  document.getElementById('sensitivityValue').textContent = e.target.value;
 });

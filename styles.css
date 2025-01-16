@@ -300,111 +300,59 @@ input:disabled {
 }
 
 .sensitivity-control {
+  margin-left: 1rem;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   background: rgba(255,255,255,0.1);
-  padding: 4px 8px;
+  padding: 0.5rem;
   border-radius: 4px;
-  margin: 0 8px;
-}
-
-.sensitivity-control label {
-  font-size: 0.9em;
-  white-space: nowrap;
 }
 
 .sensitivity-slider {
   width: 100px;
-  height: 6px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: rgba(255,255,255,0.2);
-  border-radius: 3px;
-  outline: none;
+  accent-color: #2196F3;
 }
 
-.sensitivity-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  background: #2196F3;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.sensitivity-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  background: #2196F3;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background 0.2s;
-  border: none;
-}
-
-.sensitivity-slider:hover::-webkit-slider-thumb {
-  background: #1976D2;
-}
-
-.sensitivity-slider:hover::-moz-range-thumb {
-  background: #1976D2;
+.tool-button {
+  min-width: unset;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
 }
 
 @media (max-width: 600px) {
-  body {
-    padding: 1rem;
+  .input-group {
+    gap: 10px;
   }
 
-  h1 {
-    font-size: 2rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .input-group,
-  .tool-group,
-  .editor-controls {
-    gap: 6px;
-  }
-
-  input, 
-  select {
-    padding: 0.8rem;
-    font-size: 0.9rem;
-  }
-
-  .color-picker,
-  .color-preview {
-    width: 40px;
-    height: 40px;
-  }
-
-  .image-container {
-    padding: 0.5rem;
-  }
-
-  .generated-image,
-  canvas {
-    max-height: 400px;
-  }
-
-  .gallery-header {
-    flex-direction: column;
-  }
-
-  .search-container {
-    width: 100%;
-    max-width: none;
-  }
-  
-  .sensitivity-control {
-    width: 100%;
+  .tool-group {
     justify-content: center;
   }
-  
-  .sensitivity-slider {
-    width: 80px;
+
+  .color-display {
+    width: 100%;
+    justify-content: center;
+    margin: 10px 0;
+  }
+
+  #userFilterInfo {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  #userFilterInfo .clear-filter-button {
+    align-self: center;
+  }
+
+  .gallery-item-controls {
+    justify-content: center;
+  }
+
+  .sensitivity-control {
+    width: 100%;
+    margin: 0.5rem 0;
+    justify-content: center;
   }
 }

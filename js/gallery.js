@@ -6,7 +6,7 @@ export const Gallery = {
   images: [],
   currentTab: 'recent',
   currentPage: 1,
-  itemsPerPage: 10,
+  itemsPerPage: 10, 
   currentEditId: null,
   currentSearch: '',
   currentUserFilter: null,
@@ -20,49 +20,56 @@ export const Gallery = {
     this.render();
   },
 
-  getFilteredImages() {
-    let images = [...this.images];
-
-    if (this.currentUserFilter) {
-      images = images.filter(img => this.isUserRelated(img, this.currentUserFilter));
-    }
-
-    if (this.currentSearch) {
-      images = this.filterBySearch(images, this.currentSearch);
-    }
-
-    return this.sortImages(images);
-  },
-
-  isUserRelated(image, username) {
-    return image.username === username || 
-           image.promptHistory?.some(entry => entry.username === username);
-  },
-
-  filterBySearch(images, search) {
-    const searchLower = search.toLowerCase();
-    return images.filter(img => 
-      img.prompt.toLowerCase().includes(searchLower) || 
-      img.username.toLowerCase().includes(searchLower)
-    );
-  },
-
-  sortImages(images) {
-    switch (this.currentTab) {
-      case 'popular':
-        return images.sort((a, b) => (b.views || 0) - (a.views || 0));
-      case 'my':
-        return images.filter(img => this.isUserRelated(img, room.party.client.username));
-      default:
-        return images.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    }
-  },
-
   render() {
     const galleryEl = document.getElementById('gallery');
-    const filteredImages = this.getFilteredImages();
+    let images = [...this.images];
+    
+    if (this.currentUserFilter) {
+      images = images.filter(img => {
+        const isCreator = img.username === this.currentUserFilter;
+        const hasModifications = img.promptHistory?.some(entry => 
+          entry.username === this.currentUserFilter
+        );
+        return isCreator || hasModifications;
+      });
+    } else if (this.currentSearch) {
+      const searchLower = this.currentSearch.toLowerCase();
+      images = images.filter(img => 
+        img.prompt.toLowerCase().includes(searchLower) || 
+        img.username.toLowerCase().includes(searchLower)
+      );
+    }
 
-    if (filteredImages.length === 0) {
+    if (this.currentUserFilter) {
+      document.getElementById('userFilterInfo').style.display = 'flex';
+      document.getElementById('userFilterName').textContent = this.currentUserFilter;
+    } else {
+      document.getElementById('userFilterInfo').style.display = 'none';
+    }
+
+    switch (this.currentTab) {
+      case 'popular':
+        images.sort((a, b) => (b.views || 0) - (a.views || 0));
+        break;
+      case 'my':
+        images = images.filter(img => {
+          const isOriginalCreator = img.username === room.party.client.username;
+          const hasModifications = img.promptHistory?.some(entry => 
+            entry.username === room.party.client.username && 
+            entry.timestamp !== img.created_at
+          );
+          return isOriginalCreator || hasModifications;
+        });
+        break;
+      default:
+        images.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+
+    const start = (this.currentPage - 1) * this.itemsPerPage;
+    const end = start + this.itemsPerPage;
+    const paginatedImages = images.slice(start, end);
+
+    if (paginatedImages.length === 0) {
       galleryEl.innerHTML = `
         <div class="no-results">
           ${this.currentUserFilter ? 'No images found by this user' : this.currentSearch ? 'No images found matching your search' : 'No images available'}
@@ -70,13 +77,9 @@ export const Gallery = {
       `;
       document.getElementById('prevPage').disabled = true;
       document.getElementById('nextPage').disabled = true;
-      document.getElementById('pageInfo').textContent = `Page ${this.currentPage} of ${Math.ceil(filteredImages.length / this.itemsPerPage)}`;
+      document.getElementById('pageInfo').textContent = `Page ${this.currentPage} of ${Math.ceil(images.length / this.itemsPerPage)}`;
       return;
     }
-
-    const start = (this.currentPage - 1) * this.itemsPerPage;
-    const end = start + this.itemsPerPage;
-    const paginatedImages = filteredImages.slice(start, end);
 
     galleryEl.innerHTML = paginatedImages.map(img => `
       <div class="gallery-item">
@@ -120,16 +123,9 @@ export const Gallery = {
       </div>
     `).join('');
     
-    if (this.currentUserFilter) {
-      document.getElementById('userFilterInfo').style.display = 'flex';
-      document.getElementById('userFilterName').textContent = this.currentUserFilter;
-    } else {
-      document.getElementById('userFilterInfo').style.display = 'none';
-    }
-
     document.getElementById('prevPage').disabled = this.currentPage === 1;
-    document.getElementById('nextPage').disabled = this.currentPage === Math.ceil(filteredImages.length / this.itemsPerPage);
-    document.getElementById('pageInfo').textContent = `Page ${this.currentPage} of ${Math.ceil(filteredImages.length / this.itemsPerPage)}`;
+    document.getElementById('nextPage').disabled = this.currentPage === Math.ceil(images.length / this.itemsPerPage);
+    document.getElementById('pageInfo').textContent = `Page ${this.currentPage} of ${Math.ceil(images.length / this.itemsPerPage)}`;
   },
 
   renderPromptHistory(image) {

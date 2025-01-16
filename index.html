@@ -415,6 +415,16 @@
       border-radius: 8px;
     }
 
+    .sensitivity-control {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .sensitivity-slider {
+      width: 150px;
+    }
+
     @media (max-width: 600px) {
       body {
         padding: 1rem;
@@ -544,17 +554,6 @@
     .clear-filter-button:hover {
       background: #d32f2f;
     }
-
-    .sensitivity-control {
-      margin-left: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .sensitivity-slider {
-      width: 100px;
-    }
   </style>
 </head>
 <body>
@@ -616,7 +615,7 @@
               >
               <span id="sensitivityValue">32</span>
             </div>
-
+            
             <button class="tool-button" onclick="Selection.fillSelection()" id="fillSelectionTool" data-tooltip="Fill Selection">
               <svg viewBox="0 0 24 24">
                 <path d="M19,11.5C19,11.5 17,13.67 17,15A2,2 0 0,0 19,17A2,2 0 0,0 21,15C21,13.67 19,11.5 19,11.5M5.21,10L10,5.21L14.79,10M16.56,8.94L7.62,0L6.21,1.41L8.59,3.79L3.44,8.94C2.85,9.5 2.85,10.47 3.44,11.06L8.94,16.56C9.23,16.85 9.62,17 10,17C10.38,17 10.77,16.85 11.06,16.56L16.56,11.06C17.15,10.47 17.15,9.5 16.56,8.94Z"/>
@@ -690,6 +689,35 @@
         <button onclick="Gallery.changePage(1)" class="pagination-button" id="nextPage">Next</button>
       </div>
     </div>
+    <div class="prompt-history-header" 
+         onclick="Gallery.togglePromptHistory(this)" 
+         role="button" 
+         tabindex="0" 
+         aria-expanded="false"
+         onkeypress="if(event.key === 'Enter' || event.key === ' ') { Gallery.togglePromptHistory(this); event.preventDefault(); }">
+      <span>Prompt History (${image.promptHistory.length})</span>
+      <svg class="expand-icon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+        <path fill="currentColor" d="M2 4h8L6 8 2 4z"/>
+      </svg>
+    </div>
+    <div class="gallery-item-controls">
+      <button class="edit-button" 
+              onclick="Gallery.editTitle('${img.id}')" 
+              aria-label="Edit image title"
+              title="Edit Title">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+        </svg>
+      </button>
+      <button class="delete-button" 
+              onclick="Gallery.deleteImage('${img.id}')" 
+              aria-label="Delete image"
+              title="Delete Image">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+        </svg>
+      </button>
+    </div>
 
     <div id="editTitleDialog" style="display: none;">
       <div class="dialog-content">
@@ -703,6 +731,7 @@
     </div>
 
     <script type="module">
+      // Initialize room and setup on page load
       import { room, initRoom } from './js/room.js';
       import { Editor } from './js/editor.js';
       import { Gallery } from './js/gallery.js';
@@ -713,6 +742,7 @@
         Editor.setup();
         await Gallery.init();
 
+        // Set up global event handlers
         document.addEventListener('keydown', (e) => {
           if (e.shiftKey) Selection.isShiftPressed = true;
           if (e.ctrlKey) Selection.isCtrlPressed = true;
@@ -723,12 +753,12 @@
           if (!e.ctrlKey) Selection.isCtrlPressed = false;
         });
 
+        // Hook up global functions to window for HTML onclick handlers
         window.Editor = Editor;
         window.Gallery = Gallery;
         window.Selection = Selection; 
       });
     </script>
-  </div>
-<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+  <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
