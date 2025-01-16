@@ -6,6 +6,7 @@ export const Selection = {
   current: null,
   isShiftPressed: false,
   isCtrlPressed: false,
+  currentTool: null,
 
   async processSelection(actionType, params = {}) {
     if (!this.current || !Editor.currentImage) {
@@ -102,12 +103,16 @@ export const Selection = {
   },
 
   setTool(tool) {
+    this.currentTool = tool;
     document.querySelectorAll('.tool-button').forEach(btn => 
       btn.classList.toggle('active', btn.id === `${tool}Tool`)
     );
 
     const fillImagePrompt = document.getElementById('fillImagePrompt');
+    const sensitivityControl = document.getElementById('sensitivityControl');
+    
     fillImagePrompt.style.display = tool === 'fillWithImage' ? 'flex' : 'none';
+    sensitivityControl.style.display = tool === 'magicWand' ? 'flex' : 'none';
 
     if (this.current) {
       switch (tool) {
@@ -131,8 +136,9 @@ export const Selection = {
       Selection.current = null;
     }
 
+    const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
     const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-    const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), 32);
+    const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
     if (Selection.isShiftPressed || Selection.isCtrlPressed) {
       if (Selection.current) {
@@ -266,5 +272,22 @@ export const Selection = {
 
     ctx.putImageData(imageData, 0, 0);
     Editor.originalImageData = imageData;
-  }
+  },
+
+  setupSensitivitySlider() {
+    const slider = document.getElementById('sensitivitySlider');
+    const value = document.getElementById('sensitivityValue');
+    
+    slider.addEventListener('input', (e) => {
+      value.textContent = e.target.value;
+      if (Selection.current) {
+        Selection.drawOverlay();
+      }
+    });
+  },
 };
+
+// Add slider initialization to the window load event
+window.addEventListener('load', () => {
+  Selection.setupSensitivitySlider();
+});
