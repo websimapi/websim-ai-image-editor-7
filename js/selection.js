@@ -2,16 +2,142 @@ import { Editor } from './editor.js';
 import { room } from './room.js';
 import { showNotification } from './notifications.js';
 
+class MagicWand {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d', { willReadFrequently: true });
+    this.tolerance = 32;
+    this.visited = new Set();
+    this.selection = new Set();
+  }
+
+  getPixel(x, y) {
+    if (x < 0 || x >= this.canvas.width || y < 0 || y >= this.canvas.height) {
+      return { r: 0, g: 0, b: 0, a: 0 };
+    }
+    const imageData = this.ctx.getImageData(x, y, 1, 1).data;
+    return {
+      r: imageData[0],
+      g: imageData[1],
+      b: imageData[2],
+      a: imageData[3]
+    };
+  }
+
+  colorDifference(color1, color2) {
+    const labColor1 = this.rgbToLab(color1);
+    const labColor2 = this.rgbToLab(color2);
+    
+    return Math.sqrt(
+      Math.pow(labColor2.l - labColor1.l, 2) +
+      Math.pow(labColor2.a - labColor1.a, 2) +
+      Math.pow(labColor2.b - labColor1.b, 2)
+    );
+  }
+
+  rgbToLab(rgb) {
+    let r = rgb.r / 255;
+    let g = rgb.g / 255;
+    let b = rgb.b / 255;
+
+    r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+    g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+    b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+
+    const x = (r * 0.4124 + g * 0.3576 + b * 0.1805) * 100;
+    const y = (r * 0.2126 + g * 0.7152 + b * 0.0722) * 100;
+    const z = (r * 0.0193 + g * 0.1192 + b * 0.9505) * 100;
+
+    const xn = 95.047;
+    const yn = 100.000;
+    const zn = 108.883;
+
+    const fx = x / xn > 0.008856 ? Math.pow(x / xn, 1/3) : (7.787 * x / xn) + 16/116;
+    const fy = y / yn > 0.008856 ? Math.pow(y / yn, 1/3) : (7.787 * y / yn) + 16/116;
+    const fz = z / zn > 0.008856 ? Math.pow(z / zn, 1/3) : (7.787 * z / zn) + 16/116;
+
+    return {
+      l: (116 * fy) - 16,
+      a: 500 * (fx - fy),
+      b: 200 * (fy - fz)
+    };
+  }
+
+  detectEdges(x, y) {
+    const sobelX = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]];
+    const sobelY = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]];
+    let gradientX = 0;
+    let gradientY = 0;
+
+    for(let i = -1; i <= 1; i++) {
+      for(let j = -1; j <= 1; j++) {
+        const pixel = this.getPixel(x + i, y + j);
+        const intensity = (pixel.r + pixel.g + pixel.b) / 3;
+        gradientX += intensity * sobelX[i + 1][j + 1];
+        gradientY += intensity * sobelY[i + 1][j + 1];
+      }
+    }
+
+    return Math.sqrt(gradientX * gradientX + gradientY * gradientY);
+  }
+
+  select(startX, startY) {
+    this.visited.clear();
+    this.selection.clear();
+    
+    const startColor = this.getPixel(startX, startY);
+    const queue = [{x: startX, y: startY}];
+    
+    while(queue.length > 0) {
+      const current = queue.shift();
+      const key = `${current.x},${current.y}`;
+      
+      if(this.visited.has(key)) continue;
+      this.visited.add(key);
+      
+      const currentColor = this.getPixel(current.x, current.y);
+      const colorDiff = this.colorDifference(startColor, currentColor);
+      const edgeStrength = this.detectEdges(current.x, current.y);
+      
+      if(colorDiff <= this.tolerance && edgeStrength < 100) {
+        this.selection.add(key);
+        
+        const neighbors = [
+          {x: current.x - 1, y: current.y},
+          {x: current.x + 1, y: current.y},
+          {x: current.x, y: current.y - 1},
+          {x: current.x, y: current.y + 1}
+        ];
+        
+        for(const neighbor of neighbors) {
+          if(neighbor.x >= 0 && neighbor.x < this.canvas.width &&
+             neighbor.y >= 0 && neighbor.y < this.canvas.height) {
+            queue.push(neighbor);
+          }
+        }
+      }
+    }
+    
+    return new Uint8Array(this.canvas.width * this.canvas.height).map((_, i) => {
+      const x = i % this.canvas.width;
+      const y = Math.floor(i / this.canvas.width);
+      return this.selection.has(`${x},${y}`) ? 1 : 0;
+    });
+  }
+}
+
 export const Selection = {
   current: null,
   isShiftPressed: false,
   isCtrlPressed: false,
-  isMouseDown: false,
-  lastX: null,
-  lastY: null,
+  magicWand: null,
 
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
+    if (!this.magicWand) {
+      this.magicWand = new MagicWand(canvas);
+    }
+    
     const fillImagePrompt = document.getElementById('fillImagePrompt');
     const sensitivityControl = document.getElementById('sensitivityControl');
     
@@ -23,6 +149,9 @@ export const Selection = {
     }
 
     sensitivityControl.style.display = tool === 'magicWand' ? 'flex' : 'none';
+    if (tool === 'magicWand') {
+      this.magicWand.tolerance = parseInt(document.getElementById('sensitivitySlider').value);
+    }
 
     if (tool === 'fillSelection' && this.current) {
       fillImagePrompt.style.display = 'none';
@@ -35,167 +164,53 @@ export const Selection = {
     } else {
       fillImagePrompt.style.display = 'none';
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
-      
-      if (tool === 'magicWand') {
-        canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
-        canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
-        canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
-        canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
-      } else {
-        canvas.removeEventListener('mousedown', this.handleMouseDown.bind(this));
-        canvas.removeEventListener('mousemove', this.handleMouseMove.bind(this));
-        canvas.removeEventListener('mouseup', this.handleMouseUp.bind(this));
-        canvas.removeEventListener('mouseleave', this.handleMouseUp.bind(this));
-      }
     }
   },
 
-  handleMouseDown(e) {
-    this.isMouseDown = true;
-    const canvas = e.target;
+  handleCanvasClick(e) {
+    const canvas = document.getElementById('editCanvas');
     const rect = canvas.getBoundingClientRect();
-    this.lastX = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
-    this.lastY = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
-    this.handleSelection(e);
-  },
+    const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.round((e.clientY - rect.top) * (canvas.height / rect.height));
 
-  handleMouseMove(e) {
-    if (!this.isMouseDown) return;
-
-    const canvas = e.target;
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
-    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
-
-    // Only process if mouse has moved to a new pixel
-    if (x !== this.lastX || y !== this.lastY) {
-      this.lastX = x;
-      this.lastY = y;
-      this.handleSelection(e);
+    if (!Selection.magicWand) {
+      Selection.magicWand = new MagicWand(canvas);
     }
-  },
 
-  handleMouseUp() {
-    this.isMouseDown = false;
-    this.lastX = null;
-    this.lastY = null;
-  },
+    Selection.magicWand.tolerance = parseInt(document.getElementById('sensitivitySlider').value);
 
-  handleSelection(e) {
-    const canvas = e.target;
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
-    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+    if (!Selection.isShiftPressed && !Selection.isCtrlPressed) {
+      Selection.current = null;
+    }
+
+    const newSelection = Selection.magicWand.select(x, y);
     
-    // Bounds checking
-    if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) return;
-
-    const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
-    if (!this.isShiftPressed && !this.isCtrlPressed && !this.isMouseDown) {
-      this.current = new Uint8Array(canvas.width * canvas.height);
-    }
-
-    const newSelection = this.floodFill(imageData, x, y, sensitivity);
-
-    if (this.isCtrlPressed) {
-      // Subtract from selection
-      if (this.current) {
-        for (let i = 0; i < this.current.length; i++) {
-          if (newSelection[i]) {
-            this.current[i] = 0;
-          }
+    if (Selection.isShiftPressed || Selection.isCtrlPressed) {
+      if (Selection.current) {
+        for (let i = 0; i < Selection.current.length; i++) {
+          Selection.current[i] = Selection.current[i] || newSelection[i];
         }
+      } else {
+        Selection.current = newSelection;
       }
     } else {
-      // Add to selection
-      if (!this.current) {
-        this.current = new Uint8Array(canvas.width * canvas.height);
-      }
-      for (let i = 0; i < this.current.length; i++) {
-        if (newSelection[i]) {
-          this.current[i] = 1;
-        }
-      }
+      Selection.current = newSelection;
     }
 
-    this.drawOverlay();
-  },
-
-  floodFill(imageData, startX, startY, tolerance) {
-    const width = imageData.width;
-    const height = imageData.height;
-    const pixels = imageData.data;
-    const selection = new Uint8Array(width * height);
-    const visited = new Uint8Array(width * height);
-    const startPos = (startY * width + startX) * 4;
-    const targetColor = {
-      r: pixels[startPos],
-      g: pixels[startPos + 1],
-      b: pixels[startPos + 2],
-      a: pixels[startPos + 3]
-    };
-
-    // Early exit if starting point is transparent
-    if (targetColor.a === 0) return selection;
-
-    const stack = [{x: startX, y: startY}];
-    const toleranceSquared = tolerance * tolerance;
-
-    while (stack.length > 0) {
-      const current = stack.pop();
-      const x = current.x;
-      const y = current.y;
-      const pos = y * width + x;
-
-      if (x < 0 || x >= width || y < 0 || y >= height || visited[pos]) {
-        continue;
-      }
-
-      const pixelPos = pos * 4;
-      const currentColor = {
-        r: pixels[pixelPos],
-        g: pixels[pixelPos + 1],
-        b: pixels[pixelPos + 2],
-        a: pixels[pixelPos + 3]
-      };
-
-      const colorDiffSquared = 
-        Math.pow(currentColor.r - targetColor.r, 2) +
-        Math.pow(currentColor.g - targetColor.g, 2) +
-        Math.pow(currentColor.b - targetColor.b, 2);
-
-      if (colorDiffSquared <= toleranceSquared && currentColor.a > 0) {
-        visited[pos] = 1;
-        selection[pos] = 1;
-
-        // 4-way connectivity
-        stack.push({x: x + 1, y: y});
-        stack.push({x: x - 1, y: y});
-        stack.push({x: x, y: y + 1});
-        stack.push({x: x, y: y - 1});
-
-        // Optional: 8-way connectivity for smoother selections
-        stack.push({x: x + 1, y: y + 1});
-        stack.push({x: x - 1, y: y - 1});
-        stack.push({x: x + 1, y: y - 1});
-        stack.push({x: x - 1, y: y + 1});
-      }
-    }
-
-    return selection;
+    Selection.drawOverlay();
   },
 
   drawOverlay() {
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     ctx.putImageData(Editor.originalImageData, 0, 0);
+    
     if (!this.current) return;
     
     const width = canvas.width;
     const height = canvas.height;
+    
+    // Draw selection edges
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 2;
     
@@ -221,20 +236,20 @@ export const Selection = {
   fillSelection() {
     if (!this.current) return;
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
     const color = document.getElementById('colorPicker').value;
-    const r = parseInt(color.substr(1, 2), 16);
-    const g = parseInt(color.substr(3, 2), 16);
-    const b = parseInt(color.substr(5, 2), 16);
+    const r = parseInt(color.substr(1,2), 16);
+    const g = parseInt(color.substr(3,2), 16);
+    const b = parseInt(color.substr(5,2), 16);
     
     for (let i = 0; i < this.current.length; i++) {
       if (this.current[i]) {
-        const pixelPos = i * 4;
-        pixels[pixelPos] = r;
-        pixels[pixelPos + 1] = g;
-        pixels[pixelPos + 2] = b;
+        const pos = i * 4;
+        pixels[pos] = r;
+        pixels[pos + 1] = g;
+        pixels[pos + 2] = b;
       }
     }
     
@@ -245,14 +260,13 @@ export const Selection = {
   setAlpha() {
     if (!this.current) return;
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
     
     for (let i = 0; i < this.current.length; i++) {
       if (this.current[i]) {
-        const pixelPos = i * 4;
-        pixels[pixelPos + 3] = 0;
+        pixels[i * 4 + 3] = 0;
       }
     }
     
@@ -263,7 +277,7 @@ export const Selection = {
   clearSelection() {
     this.current = null;
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (Editor.originalImageData) {
       ctx.putImageData(Editor.originalImageData, 0, 0);
     }
@@ -419,6 +433,10 @@ export const Selection = {
   }
 };
 
+// Set up sensitivity slider handler
 document.getElementById('sensitivitySlider')?.addEventListener('input', (e) => {
   document.getElementById('sensitivityValue').textContent = e.target.value;
+  if (Selection.magicWand) {
+    Selection.magicWand.tolerance = parseInt(e.target.value);
+  }
 });
