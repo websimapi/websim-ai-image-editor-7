@@ -1,3 +1,15 @@
+:root {
+  --primary-color: #4CAF50;
+  --secondary-color: #2196F3;
+  --accent-color: #9c27b0;
+  --danger-color: #f44336;
+  --background-primary: #1a1a2e;
+  --background-secondary: #16213e;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255,255,255,0.7);
+  --spacing-unit: 1rem;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -39,4 +51,127 @@ h1 {
   flex-wrap: wrap;
   width: 100%;
   justify-content: center;
+}
+
+.gallery-item .metadata {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.8);
+}
+
+.gallery-item .stats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.6);
+}
+
+.search-container {
+  position: relative;
+  flex: 1;
+  max-width: 400px;
+  min-width: 200px;
+}
+
+.search-container input {
+  width: 100%;
+  padding: 0.8rem;
+  padding-left: 2.5rem;
+  font-size: 0.9rem;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.2rem;
+  height: 1.2rem;
+  fill: rgba(255,255,255,0.6);
+  pointer-events: none;
+}
+
+.no-results {
+  text-align: center;
+  padding: 2rem;
+  color: rgba(255,255,255,0.6);
+  font-size: 1.1rem;
+  grid-column: 1 / -1;
+}
+
+/* Text Controls */
+.text-preview {
+  position: fixed;  
+  pointer-events: none;
+  white-space: nowrap;
+  transform-origin: left top;
+  z-index: 1001;
+}
+
+.text-controls {
+  position: fixed;
+  background: rgba(0,0,0,0.8);
+  padding: 12px;
+  border-radius: 8px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  margin-top: 30px; 
+  max-width: 300px; 
+}
+
+.gallery-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin: 2rem 0;
+  padding: 1rem;
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+}
+
+.pagination-button {
+  background: var(--secondary-color);
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+#editTitleDialog {
+  padding: 15px;
+  max-width: 300px;
+}
+
+.username-link {
+  color: var(--secondary-color);
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.username-link:hover {
+  color: #1976D2;
+}
+
+#userFilterInfo {
+  background: rgba(255,255,255,0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.clear-filter-button {
+  background: var(--danger-color);
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  min-width: auto;
+}
+
+.clear-filter-button:hover {
+  background: #d32f2f;
 }
