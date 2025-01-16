@@ -1,6 +1,7 @@
 import { room } from './room.js';
 import { Selection } from './selection.js';
 import { Gallery } from './gallery.js';
+import { LayerManager } from './layers.js';
 
 export const Editor = {
   currentImage: null,
@@ -124,8 +125,15 @@ export const Editor = {
     if (this.currentImage) {
       canvas.width = this.currentImage.naturalWidth;
       canvas.height = this.currentImage.naturalHeight;
+      
+      // Create base layer
+      LayerManager.createLayer('base', {
+        imageData: ctx.getImageData(0, 0, canvas.width, canvas.height),
+        originalImage: this.currentImage.src
+      });
+      
       ctx.drawImage(this.currentImage, 0, 0);
-      this.originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      this.renderLayers();
       this.currentImage.style.display = 'none';
       canvas.style.display = 'block';
       editorControls.style.display = 'flex';
@@ -172,6 +180,55 @@ export const Editor = {
     };
 
     document.body.appendChild(generatedImage);
+  },
+
+  renderLayers() {
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    LayerManager.layers.forEach(layer => {
+      if (!layer.visible) return;
+
+      ctx.globalAlpha = layer.opacity;
+      
+      switch (layer.type) {
+        case 'base':
+          ctx.putImageData(layer.data.imageData, 0, 0);
+          break;
+        case 'selection':
+          this.renderSelectionLayer(ctx, layer);
+          break;
+        case 'fill':
+          ctx.putImageData(layer.data.imageData, 0, 0);
+          break;
+        case 'color':
+          this.renderColorLayer(ctx, layer);
+          break;
+      }
+    });
+    
+    ctx.globalAlpha = 1;
+  },
+
+  renderSelectionLayer(ctx, layer) {
+    // Render selection overlay
+    if (layer.data.selection) {
+      ctx.fillStyle = `rgba(${layer.data.color.r}, ${layer.data.color.g}, ${layer.data.color.b}, 0.5)`;
+      for (let i = 0; i < layer.data.selection.length; i++) {
+        if (layer.data.selection[i]) {
+          const x = i % ctx.canvas.width;
+          const y = Math.floor(i / ctx.canvas.width);
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+  },
+
+  renderColorLayer(ctx, layer) {
+    const { r, g, b } = layer.data.color;
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   },
 
   resetImage() {
@@ -254,5 +311,27 @@ export const Editor = {
       };
       reader.readAsDataURL(file);
     }
+  },
+
+  flattenLayers() {
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
+    // Create new base layer with flattened result
+    LayerManager.layers = [{
+      id: Date.now().toString(),
+      type: 'base',
+      data: { imageData },
+      visible: true,
+      opacity: 1,
+      name: 'Flattened Image',
+      createdAt: new Date().toISOString(),
+      editHistory: []
+    }];
+    
+    LayerManager.activeLayerId = LayerManager.layers[0].id;
+    LayerManager.renderLayerUI();
+    this.renderLayers();
   }
 };
