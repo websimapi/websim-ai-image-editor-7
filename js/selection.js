@@ -12,11 +12,14 @@ export const Selection = {
 
   init() {
     const canvas = document.getElementById('editCanvas');
-    // Bind the methods to preserve this context
-    canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
-    canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-    canvas.addEventListener('mouseup', () => this.handleMouseUp());
-    canvas.addEventListener('mouseleave', () => this.handleMouseUp());
+    if (!canvas) return;
+    
+    // Bind the event handlers to preserve 'this' context
+    canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+    canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+    canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+    canvas.addEventListener('click', this.handleCanvasClick.bind(this));
   },
 
   setTool(tool) {
