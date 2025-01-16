@@ -29,4 +29,14 @@ h1 {
   text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
-/* There is no existing code to include as the current code was empty */
+.color-display {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 5px;
+  margin-left: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: center;
+}
