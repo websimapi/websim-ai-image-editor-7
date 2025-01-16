@@ -6,7 +6,7 @@ export const Gallery = {
   images: [],
   currentTab: 'recent',
   currentPage: 1,
-  itemsPerPage: 10,
+  itemsPerPage: 10, 
   currentEditId: null,
   currentSearch: '',
   currentUserFilter: null,
@@ -23,19 +23,19 @@ export const Gallery = {
   render() {
     const galleryEl = document.getElementById('gallery');
     let images = [...this.images];
-
+    
     if (this.currentUserFilter) {
       images = images.filter(img => {
         const isCreator = img.username === this.currentUserFilter;
-        const hasModifications = img.promptHistory?.some(entry =>
+        const hasModifications = img.promptHistory?.some(entry => 
           entry.username === this.currentUserFilter
         );
         return isCreator || hasModifications;
       });
     } else if (this.currentSearch) {
       const searchLower = this.currentSearch.toLowerCase();
-      images = images.filter(img =>
-        img.prompt.toLowerCase().includes(searchLower) ||
+      images = images.filter(img => 
+        img.prompt.toLowerCase().includes(searchLower) || 
         img.username.toLowerCase().includes(searchLower)
       );
     }
@@ -54,8 +54,8 @@ export const Gallery = {
       case 'my':
         images = images.filter(img => {
           const isOriginalCreator = img.username === room.party.client.username;
-          const hasModifications = img.promptHistory?.some(entry =>
-            entry.username === room.party.client.username &&
+          const hasModifications = img.promptHistory?.some(entry => 
+            entry.username === room.party.client.username && 
             entry.timestamp !== img.created_at
           );
           return isOriginalCreator || hasModifications;
@@ -83,11 +83,11 @@ export const Gallery = {
 
     galleryEl.innerHTML = paginatedImages.map(img => `
       <div class="gallery-item">
-        <div
-          class="gallery-item-image"
+        <div 
+          class="gallery-item-image" 
           style="background-image: url('${img.imageUrl}')"
           onclick="Gallery.loadImage('${img.id}')"
-          role="img"
+          role="img" 
           aria-label="${img.prompt}"
         ></div>
         <div class="metadata">
@@ -122,7 +122,7 @@ export const Gallery = {
         ` : ''}
       </div>
     `).join('');
-
+    
     document.getElementById('prevPage').disabled = this.currentPage === 1;
     document.getElementById('nextPage').disabled = this.currentPage === Math.ceil(images.length / this.itemsPerPage);
     document.getElementById('pageInfo').textContent = `Page ${this.currentPage} of ${Math.ceil(images.length / this.itemsPerPage)}`;
@@ -161,9 +161,9 @@ export const Gallery = {
           ${image.promptHistory.map((entry, index) => `
             <div class="prompt-history-entry">
               <div>
-                ${index === 0 ? 'Original prompt: ' :
-                  entry.type === 'selection-fill' ? 'Selection fill: ' :
-                  entry.type === 'text-edit' ? 'Text edit: ' :
+                ${index === 0 ? 'Original prompt: ' : 
+                  entry.type === 'selection-fill' ? 'Selection fill: ' : 
+                  entry.type === 'text-edit' ? 'Text edit: ' : 
                   'Modified with: '}
                 ${entry.prompt}
               </div>
@@ -180,10 +180,10 @@ export const Gallery = {
     const historyDiv = header.closest('.prompt-history');
     const isExpanded = historyDiv.classList.contains('expanded');
     historyDiv.classList.toggle('expanded');
-
+    
     // Update ARIA attributes
     header.setAttribute('aria-expanded', !isExpanded);
-
+    
     const entriesDiv = historyDiv.querySelector('.prompt-history-entries');
     entriesDiv.style.display = !isExpanded ? 'block' : 'none';
   },
@@ -191,12 +191,12 @@ export const Gallery = {
   async loadImage(id) {
     const image = this.images.find(img => img.id === id);
     if (!image) return;
-
+    
     await room.collection('gallery_images').update(id, {
       views: (image.views || 0) + 1,
       uses: (image.uses || 0) + 1
     });
-
+    
     Editor.loadGalleryImage(image);
   },
 
@@ -246,7 +246,7 @@ export const Gallery = {
       showNotification('Image not found', 'error');
       return;
     }
-
+    
     this.currentEditId = id;
     const dialog = document.getElementById('editTitleDialog');
     const input = document.getElementById('editTitleInput');
@@ -256,15 +256,15 @@ export const Gallery = {
 
   async saveTitleEdit() {
     if (!this.currentEditId) return;
-
+    
     const input = document.getElementById('editTitleInput');
     const newTitle = input.value.trim();
-
+    
     if (!newTitle) {
       showNotification('Please enter a title', 'error');
       return;
     }
-
+    
     try {
       await room.collection('gallery_images').update(this.currentEditId, {
         title: newTitle
