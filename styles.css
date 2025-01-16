@@ -166,3 +166,61 @@ h1 {
 .notification.info {
   background: rgba(33, 150, 243, 0.9);
 }
+
+.tool-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.project-history {
+  margin-top: 1rem;
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.project-history-header {
+  padding: 0.8rem;
+  background: rgba(0,0,0,0.2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.project-history-content {
+  padding: 0.8rem;
+  display: none;
+}
+
+.project-history.expanded .project-history-content {
+  display: block;
+}
+
+.history-entry {
+  padding: 0.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-entry:last-child {
+  border-bottom: none;
+}
+
+.history-entry .timestamp {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.6);
+}
+
+.history-entry .action {
+  font-weight: bold;
+}
+
+.history-entry .metadata {
+  font-size: 0.9rem;
+  color: rgba(255,255,255,0.8);
+  margin-top: 0.3rem;
+}

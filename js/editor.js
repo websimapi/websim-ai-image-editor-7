@@ -2,11 +2,13 @@ import { room } from './room.js';
 import { Selection } from './selection.js';
 import { Gallery } from './gallery.js';
 import { showNotification } from './notifications.js';
+import { Project } from './project.js';
 
 export const Editor = {
   currentImage: null,
   originalImageData: null,
   galleryImages: [],
+  currentProject: null,
 
   setup() {
     this.setupEventListeners();
@@ -85,6 +87,29 @@ export const Editor = {
         addGalleryButton.style.display = 'block';
         this.currentImage = generatedImage;
         
+        // Create new project if none exists
+        if (!this.currentProject) {
+          this.currentProject = await this.createNewProject();
+        }
+
+        // Add generate action to project history
+        await this.currentProject.addAction({
+          type: 'generate',
+          newState: {
+            imageUrl: generatedImage.src,
+            imageData: this.originalImageData,
+            prompt: fullPrompt,
+            selection: null
+          },
+          metadata: {
+            prompt: fullPrompt,
+            prefix: prefixSelect.value,
+            suffix: suffixSelect.value
+          }
+        });
+
+        this.updateUndoRedoButtons();
+
         try {
           const galleryEntry = await room.collection('gallery_images').create({
             prompt: fullPrompt,
@@ -170,6 +195,24 @@ export const Editor = {
     generatedImage.onload = async () => {
       // Rest of the fill logic remains the same
       // ...
+
+      // Add fill action to project history
+      await this.currentProject.addAction({
+        type: 'fill',
+        newState: {
+          imageUrl: generatedImage.src,
+          imageData: this.originalImageData,
+          prompt: fullPrompt,
+          selection: Selection.current
+        },
+        metadata: {
+          prompt: fullPrompt,
+          prefix: prefixSelect.value,
+          suffix: suffixSelect.value
+        }
+      });
+
+      this.updateUndoRedoButtons();
     };
 
     document.body.appendChild(generatedImage);
@@ -180,6 +223,20 @@ export const Editor = {
     const ctx = canvas.getContext('2d');
     ctx.putImageData(this.originalImageData, 0, 0);
     Selection.clear();
+
+    // Add reset action to project history
+    await this.currentProject.addAction({
+      type: 'reset',
+      newState: {
+        imageUrl: this.currentImage.src,
+        imageData: this.originalImageData,
+        prompt: this.currentImage.alt,
+        selection: null
+      },
+      metadata: {}
+    });
+
+    this.updateUndoRedoButtons();
   },
 
   saveImage() {
@@ -188,6 +245,20 @@ export const Editor = {
     link.download = 'edited-image.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
+
+    // Add save action to project history
+    await this.currentProject.addAction({
+      type: 'save',
+      newState: {
+        imageUrl: this.currentImage.src,
+        imageData: this.originalImageData,
+        prompt: this.currentImage.alt,
+        selection: Selection.current
+      },
+      metadata: {}
+    });
+
+    this.updateUndoRedoButtons();
   },
 
   async addToGallery() {
@@ -249,6 +320,24 @@ export const Editor = {
       this.currentImage.src = imageUrl;
       this.currentImage.dataset.galleryId = galleryEntry.id;
       
+      // Add gallery add action to project history
+      await this.currentProject.addAction({
+        type: 'gallery-add',
+        newState: {
+          imageUrl: imageUrl,
+          imageData: this.originalImageData,
+          prompt: fullPrompt,
+          selection: Selection.current
+        },
+        metadata: {
+          prompt: fullPrompt,
+          prefix: prefixSelect.value,
+          suffix: suffixSelect.value
+        }
+      });
+
+      this.updateUndoRedoButtons();
+
       showNotification('Image successfully added to gallery!', 'success');
       
     } catch (error) {
@@ -293,6 +382,67 @@ export const Editor = {
         img.src = e.target.result;
       };
       reader.readAsDataURL(file);
+    }
+  },
+
+  async createNewProject() {
+    const initialState = {
+      imageUrl: null,
+      imageData: null,
+      prompt: null,
+      selection: null
+    };
+    
+    this.currentProject = await Project.create(initialState);
+    this.updateUndoRedoButtons();
+    return this.currentProject;
+  },
+
+  async loadProject(id) {
+    this.currentProject = await Project.load(id);
+    if (this.currentProject) {
+      this.loadProjectState(this.currentProject.currentState);
+      this.updateUndoRedoButtons();
+    }
+  },
+
+  loadProjectState(state) {
+    if (state.imageUrl) {
+      this.loadImage(state.imageUrl);
+    }
+    if (state.selection) {
+      Selection.current = state.selection;
+      Selection.drawOverlay();
+    }
+  },
+
+  updateUndoRedoButtons() {
+    const undoBtn = document.getElementById('undoButton');
+    const redoBtn = document.getElementById('redoButton');
+    
+    if (this.currentProject) {
+      undoBtn.disabled = !this.currentProject.canUndo();
+      redoBtn.disabled = !this.currentProject.canRedo();
+    }
+  },
+
+  async undo() {
+    if (!this.currentProject) return;
+    
+    const previousState = await this.currentProject.undo();
+    if (previousState) {
+      this.loadProjectState(previousState.state);
+      this.updateUndoRedoButtons();
+    }
+  },
+
+  async redo() {
+    if (!this.currentProject) return;
+    
+    const nextState = await this.currentProject.redo();
+    if (nextState) {
+      this.loadProjectState(nextState.state);
+      this.updateUndoRedoButtons();
     }
   }
 };
