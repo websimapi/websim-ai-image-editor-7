@@ -133,21 +133,31 @@ export const Selection = {
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-    if (!Selection.isShiftPressed && !Selection.isCtrlPressed) {
-      Selection.current = null;
+    
+    // If no current selection and not adding (shift) or subtracting (ctrl), create new selection
+    if (!Selection.current && !Selection.isShiftPressed && !Selection.isCtrlPressed) {
+      Selection.current = new Uint8Array(canvas.width * canvas.height);
     }
 
     const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
     const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
     const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
-    if (Selection.isShiftPressed || Selection.isCtrlPressed) {
-      if (Selection.current) {
+    if (Selection.current) {
+      if (Selection.isCtrlPressed) {
+        // Subtract from selection when CTRL is pressed
+        for (let i = 0; i < Selection.current.length; i++) {
+          if (newSelection[i]) {
+            Selection.current[i] = 0;
+          }
+        }
+      } else if (Selection.isShiftPressed) {
+        // Add to selection when Shift is pressed
         for (let i = 0; i < Selection.current.length; i++) {
           Selection.current[i] = Selection.current[i] || newSelection[i];
         }
       } else {
+        // Replace selection when no modifier key is pressed
         Selection.current = newSelection;
       }
     } else {
