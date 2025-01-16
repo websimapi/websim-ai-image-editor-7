@@ -95,11 +95,13 @@ export const Selection = {
     ] : [0, 0, 0];
   },
 
-  clear() {
+  clearSelection() {
     this.current = null;
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.putImageData(Editor.originalImageData, 0, 0);
+    if (canvas && Editor.originalImageData) {
+      const ctx = canvas.getContext('2d');
+      ctx.putImageData(Editor.originalImageData, 0, 0);
+    }
   },
 
   setTool(tool) {
@@ -140,19 +142,13 @@ export const Selection = {
     const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
     const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
-    if (Selection.current) {
-      if (Selection.isCtrlPressed) {
-        // If CTRL is pressed, remove the selected region
-        for (let i = 0; i < Selection.current.length; i++) {
-          if (newSelection[i]) {
-            Selection.current[i] = false;
-          }
-        }
-      } else if (Selection.isShiftPressed) {
-        // If SHIFT is pressed, add to selection
+    if (Selection.isShiftPressed || Selection.isCtrlPressed) {
+      if (Selection.current) {
         for (let i = 0; i < Selection.current.length; i++) {
           Selection.current[i] = Selection.current[i] || newSelection[i];
         }
+      } else {
+        Selection.current = newSelection;
       }
     } else {
       Selection.current = newSelection;
