@@ -9,7 +9,6 @@ export const Selection = {
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
     const fillImagePrompt = document.getElementById('fillImagePrompt');
-    const textControls = document.getElementById('textControls');
     
     document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
     
@@ -26,11 +25,8 @@ export const Selection = {
       this.setAlpha();
     } else if (tool === 'fillWithImage' && this.current) {
       fillImagePrompt.style.display = 'flex';
-    } else if (tool === 'text') {
-      canvas.style.cursor = 'text';
     } else {
       fillImagePrompt.style.display = 'none';
-      textControls.style.display = 'none';
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
     }
   },
@@ -40,14 +36,6 @@ export const Selection = {
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (canvas.width / rect.width);
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-    const activeTool = document.querySelector('.tool-button.active');
-    if (activeTool && activeTool.id === 'textTool') {
-      // Note: The Text object is not defined in the plan, 
-      // assuming it's defined elsewhere in the codebase.
-      Text.handleTool(e.clientX, e.clientY, x, y);
-      return;
-    }
 
     if (!Selection.isShiftPressed && !Selection.isCtrlPressed) {
       Selection.current = null;

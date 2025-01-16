@@ -2,6 +2,28 @@ import { room } from './room.js';
 import { Selection } from './selection.js';
 import { Gallery } from './gallery.js';
 
+window.addEventListener('load', async () => {
+  await initRoom();
+  Editor.setup();
+  await Gallery.init();
+
+  // Set up global event handlers
+  document.addEventListener('keydown', (e) => {
+    if (e.shiftKey) Selection.isShiftPressed = true;
+    if (e.ctrlKey) Selection.isCtrlPressed = true;
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (!e.shiftKey) Selection.isShiftPressed = false;
+    if (!e.ctrlKey) Selection.isCtrlPressed = false;
+  });
+
+  // Hook up global functions to window for HTML onclick handlers
+  window.Editor = Editor;
+  window.Gallery = Gallery;
+  window.Selection = Selection;
+});
+
 export const Editor = {
   currentImage: null,
   originalImageData: null,
