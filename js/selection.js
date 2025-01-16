@@ -146,22 +146,50 @@ export const Selection = {
     const width = canvas.width;
     const height = canvas.height;
     
+    // Create a semi-transparent highlight for selected areas
+    const imageData = this.overlayContext.createImageData(width, height);
+    const data = imageData.data;
+    
+    for (let i = 0; i < this.current.length; i++) {
+      if (this.current[i]) {
+        const offset = i * 4;
+        data[offset] = 255;     // R
+        data[offset + 1] = 255; // G
+        data[offset + 2] = 255; // B
+        data[offset + 3] = 40;  // A - semi-transparent
+      }
+    }
+    
+    this.overlayContext.putImageData(imageData, 0, 0);
+    
+    // Draw the outline
     this.overlayContext.strokeStyle = 'white';
     this.overlayContext.lineWidth = 2;
     
+    // Find edges and draw outline
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const pos = y * width + x;
         if (this.current[pos]) {
-          const isEdge = x > 0 && !this.current[pos - 1] || 
-                        x < width - 1 && !this.current[pos + 1] || 
-                        y > 0 && !this.current[pos - width] || 
-                        y < height - 1 && !this.current[pos + width];
+          const isEdge = 
+            x === 0 || 
+            x === width - 1 || 
+            y === 0 || 
+            y === height - 1 ||
+            !this.current[pos - 1] || // left
+            !this.current[pos + 1] || // right
+            !this.current[pos - width] || // top
+            !this.current[pos + width];   // bottom
+            
           if (isEdge) {
-            this.overlayContext.fillStyle = 'white';
-            this.overlayContext.fillRect(x - 1, y - 1, 3, 3);
+            // Draw a double-line effect for better visibility
             this.overlayContext.strokeStyle = 'black';
-            this.overlayContext.strokeRect(x - 1, y - 1, 3, 3);
+            this.overlayContext.lineWidth = 3;
+            this.overlayContext.strokeRect(x - 0.5, y - 0.5, 1, 1);
+            
+            this.overlayContext.strokeStyle = 'white';
+            this.overlayContext.lineWidth = 1;
+            this.overlayContext.strokeRect(x - 0.5, y - 0.5, 1, 1);
           }
         }
       }
