@@ -1,4 +1,5 @@
 import { room } from './room.js';
+import { Editor } from './editor.js';
 
 export const Gallery = {
   images: [],
