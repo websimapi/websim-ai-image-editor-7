@@ -6,6 +6,28 @@ export const Selection = {
   current: null,
   isShiftPressed: false,
   isCtrlPressed: false,
+  overlayContext: null,
+  overlayCanvas: null,
+
+  initOverlay() {
+    const canvas = document.getElementById('editCanvas');
+    if (!this.overlayCanvas) {
+      this.overlayCanvas = document.createElement('canvas');
+      this.overlayCanvas.style.position = 'absolute';
+      this.overlayCanvas.style.pointerEvents = 'none';
+      this.overlayCanvas.style.top = '0';
+      this.overlayCanvas.style.left = '0';
+      canvas.parentElement.appendChild(this.overlayCanvas);
+    }
+    
+    // Match overlay size to main canvas
+    this.overlayCanvas.width = canvas.width;
+    this.overlayCanvas.height = canvas.height;
+    this.overlayCanvas.style.width = canvas.style.width || '100%';
+    this.overlayCanvas.style.height = canvas.style.height || 'auto';
+    
+    this.overlayContext = this.overlayCanvas.getContext('2d');
+  },
 
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
@@ -33,6 +55,11 @@ export const Selection = {
       fillImagePrompt.style.display = 'none';
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
     }
+
+    // Initialize overlay when switching to magic wand
+    if (tool === 'magicWand') {
+      this.initOverlay();
+    }
   },
 
   handleCanvasClick(e) {
@@ -42,6 +69,7 @@ export const Selection = {
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
 
+    // Only reset selection if not using shift or ctrl
     if (!Selection.isShiftPressed && !Selection.isCtrlPressed) {
       Selection.current = null;
     }
@@ -49,7 +77,17 @@ export const Selection = {
     const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
     const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
-    if (Selection.isShiftPressed || Selection.isCtrlPressed) {
+    if (Selection.isCtrlPressed) {
+      // Deselect the clicked area
+      if (Selection.current) {
+        for (let i = 0; i < Selection.current.length; i++) {
+          if (newSelection[i]) {
+            Selection.current[i] = 0;
+          }
+        }
+      }
+    } else if (Selection.isShiftPressed) {
+      // Add to selection
       if (Selection.current) {
         for (let i = 0; i < Selection.current.length; i++) {
           Selection.current[i] = Selection.current[i] || newSelection[i];
@@ -58,6 +96,7 @@ export const Selection = {
         Selection.current = newSelection;
       }
     } else {
+      // New selection
       Selection.current = newSelection;
     }
 
@@ -97,15 +136,18 @@ export const Selection = {
   },
 
   drawOverlay() {
+    if (!this.overlayContext || !this.current) {
+      return;
+    }
+    
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.putImageData(Editor.originalImageData, 0, 0);
-    if (!this.current) return;
+    this.overlayContext.clearRect(0, 0, canvas.width, canvas.height);
     
     const width = canvas.width;
     const height = canvas.height;
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 2;
+    
+    this.overlayContext.strokeStyle = 'white';
+    this.overlayContext.lineWidth = 2;
     
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -116,10 +158,10 @@ export const Selection = {
                         y > 0 && !this.current[pos - width] || 
                         y < height - 1 && !this.current[pos + width];
           if (isEdge) {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(x - 1, y - 1, 3, 3);
-            ctx.strokeStyle = 'black';
-            ctx.strokeRect(x - 1, y - 1, 3, 3);
+            this.overlayContext.fillStyle = 'white';
+            this.overlayContext.fillRect(x - 1, y - 1, 3, 3);
+            this.overlayContext.strokeStyle = 'black';
+            this.overlayContext.strokeRect(x - 1, y - 1, 3, 3);
           }
         }
       }
@@ -170,10 +212,9 @@ export const Selection = {
 
   clearSelection() {
     this.current = null;
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    if (Editor.originalImageData) {
-      ctx.putImageData(Editor.originalImageData, 0, 0);
+    if (this.overlayContext) {
+      const canvas = document.getElementById('editCanvas');
+      this.overlayContext.clearRect(0, 0, canvas.width, canvas.height);
     }
   },
 
