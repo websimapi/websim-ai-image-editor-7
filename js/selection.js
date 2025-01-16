@@ -6,6 +6,10 @@ export const Selection = {
   current: null,
   isShiftPressed: false,
   isCtrlPressed: false,
+  isDragging: false,
+  startX: null,
+  startY: null,
+  dragSelection: null,
 
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
@@ -33,6 +37,160 @@ export const Selection = {
       fillImagePrompt.style.display = 'none';
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
     }
+
+    // Set up drag selection events when magicWand is active
+    if (tool === 'magicWand') {
+      canvas.addEventListener('mousedown', this.startDragSelection.bind(this));
+      canvas.addEventListener('mousemove', this.updateDragSelection.bind(this));
+      canvas.addEventListener('mouseup', this.endDragSelection.bind(this));
+    } else {
+      canvas.removeEventListener('mousedown', this.startDragSelection.bind(this));
+      canvas.removeEventListener('mousemove', this.updateDragSelection.bind(this));
+      canvas.removeEventListener('mouseup', this.endDragSelection.bind(this));
+    }
+  },
+
+  startDragSelection(e) {
+    const canvas = document.getElementById('editCanvas');
+    const rect = canvas.getBoundingClientRect();
+    this.isDragging = true;
+    this.startX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    this.startY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    this.dragSelection = null;
+  },
+
+  updateDragSelection(e) {
+    if (!this.isDragging) return;
+    
+    const canvas = document.getElementById('editCanvas');
+    const rect = canvas.getBoundingClientRect();
+    const currentX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const currentY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    // Create selection based on drag area
+    const width = canvas.width;
+    const height = canvas.height;
+    this.dragSelection = new Uint8Array(width * height);
+    
+    const minX = Math.max(0, Math.min(this.startX, currentX));
+    const maxX = Math.min(width, Math.max(this.startX, currentX));
+    const minY = Math.max(0, Math.min(this.startY, currentY));
+    const maxY = Math.min(height, Math.max(this.startY, currentY));
+    
+    for (let y = Math.floor(minY); y < Math.ceil(maxY); y++) {
+      for (let x = Math.floor(minX); x < Math.ceil(maxX); x++) {
+        this.dragSelection[y * width + x] = 1;
+      }
+    }
+    
+    this.drawDragOverlay();
+  },
+
+  endDragSelection(e) {
+    if (!this.isDragging) return;
+    
+    this.isDragging = false;
+    if (!this.dragSelection) {
+      this.handleCanvasClick(e);
+      return;
+    }
+    
+    if (!this.isShiftPressed && !this.isCtrlPressed) {
+      this.current = null;
+    }
+    
+    if (this.current === null) {
+      this.current = this.dragSelection;
+    } else {
+      const newSelection = new Uint8Array(this.current.length);
+      for (let i = 0; i < this.current.length; i++) {
+        if (this.isCtrlPressed) {
+          // Anti-selection with CTRL
+          newSelection[i] = this.current[i] && !this.dragSelection[i];
+        } else {
+          // Add to selection
+          newSelection[i] = this.current[i] || this.dragSelection[i];
+        }
+      }
+      this.current = newSelection;
+    }
+    
+    this.dragSelection = null;
+    this.drawOverlay();
+  },
+
+  drawDragOverlay() {
+    if (!this.dragSelection) return;
+    
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.putImageData(Editor.originalImageData, 0, 0);
+    
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Draw current selection if it exists
+    if (this.current) {
+      this.drawSelectionOutline(this.current, 'rgba(255, 255, 255, 0.3)');
+    }
+    
+    // Draw drag selection
+    this.drawSelectionOutline(this.dragSelection, this.isCtrlPressed ? 
+      'rgba(255, 0, 0, 0.3)' : // Red for anti-selection
+      'rgba(0, 255, 0, 0.3)'   // Green for normal selection
+    );
+  },
+
+  drawSelectionOutline(selection, color) {
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1;
+    
+    // Create a temporary canvas for the selection overlay
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Draw selection with semi-transparent color
+    const imgData = tempCtx.createImageData(width, height);
+    for (let i = 0; i < selection.length; i++) {
+      if (selection[i]) {
+        const pos = i * 4;
+        const [r, g, b, a] = color.match(/\d+/g).map(Number);
+        imgData.data[pos] = r;
+        imgData.data[pos + 1] = g;
+        imgData.data[pos + 2] = b;
+        imgData.data[pos + 3] = Math.floor(a * 255);
+      }
+    }
+    tempCtx.putImageData(imgData, 0, 0);
+    
+    // Draw the selection overlay
+    ctx.drawImage(tempCanvas, 0, 0);
+    
+    // Draw outline
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pos = y * width + x;
+        if (selection[pos]) {
+          const isEdge = x > 0 && !selection[pos - 1] || 
+                        x < width - 1 && !selection[pos + 1] || 
+                        y > 0 && !selection[pos - width] || 
+                        y < height - 1 && !selection[pos + width];
+          if (isEdge) {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(x - 1, y - 1, 3, 3);
+            ctx.strokeStyle = 'black';
+            ctx.strokeRect(x - 1, y - 1, 3, 3);
+          }
+        }
+      }
+    }
   },
 
   handleCanvasClick(e) {
@@ -42,26 +200,36 @@ export const Selection = {
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
 
-    if (!Selection.isShiftPressed && !Selection.isCtrlPressed) {
-      Selection.current = null;
+    if (!this.isShiftPressed && !this.isCtrlPressed) {
+      this.current = null;
     }
 
     const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-    const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
+    const newSelection = this.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
-    if (Selection.isShiftPressed || Selection.isCtrlPressed) {
-      if (Selection.current) {
-        for (let i = 0; i < Selection.current.length; i++) {
-          Selection.current[i] = Selection.current[i] || newSelection[i];
+    if (this.isCtrlPressed) {
+      // Anti-selection with CTRL
+      if (this.current) {
+        for (let i = 0; i < this.current.length; i++) {
+          this.current[i] = this.current[i] && !newSelection[i];
         }
       } else {
-        Selection.current = newSelection;
+        this.current = newSelection;
+      }
+    } else if (this.isShiftPressed) {
+      // Add to selection with Shift
+      if (this.current) {
+        for (let i = 0; i < this.current.length; i++) {
+          this.current[i] = this.current[i] || newSelection[i];
+        }
+      } else {
+        this.current = newSelection;
       }
     } else {
-      Selection.current = newSelection;
+      this.current = newSelection;
     }
 
-    Selection.drawOverlay();
+    this.drawOverlay();
   },
 
   magicWandSelect(imageData, startX, startY, tolerance) {
