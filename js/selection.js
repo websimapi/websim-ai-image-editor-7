@@ -89,11 +89,11 @@ export const Selection = {
     const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
 
     if (!this.isShiftPressed && !this.isCtrlPressed && !this.isDragging) {
-      Selection.current = null;
+      this.current = null;
     }
 
     const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-    const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
+    const newSelection = this.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
     if (this.isCtrlPressed) {
       // CTRL+click to deselect
@@ -118,7 +118,7 @@ export const Selection = {
       this.current = newSelection;
     }
 
-    this.drawOverlay();
+    this.drawSelection();
   },
 
   magicWandSelect(imageData, startX, startY, tolerance) {
@@ -153,7 +153,7 @@ export const Selection = {
     return selected;
   },
 
-  drawOverlay() {
+  drawSelection() {
     const canvas = document.getElementById('editCanvas');
     const ctx = canvas.getContext('2d');
     ctx.putImageData(Editor.originalImageData, 0, 0);
@@ -225,13 +225,17 @@ export const Selection = {
     Editor.originalImageData = imageData;
   },
 
-  clearSelection() {
+  clear() {
     this.current = null;
     const canvas = document.getElementById('editCanvas');
     const ctx = canvas.getContext('2d');
     if (Editor.originalImageData) {
       ctx.putImageData(Editor.originalImageData, 0, 0);
     }
+  },
+
+  clearSelection() {
+    this.clear();
   },
 
   fillWithImage(prompt) {
