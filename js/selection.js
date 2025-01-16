@@ -59,7 +59,7 @@ export const Selection = {
     canvas.removeEventListener('mouseleave', this.handleMouseUp.bind(this));
   },
 
-  handleMouseDown = (e) => {
+  handleMouseDown(e) {
     this.isMouseDown = true;
     const canvas = e.target;
     const rect = canvas.getBoundingClientRect();
@@ -68,12 +68,12 @@ export const Selection = {
     this.handleSelection(e);
   },
 
-  handleMouseMove = (e) => {
+  handleMouseMove(e) {
     if (!this.isMouseDown) return;
     this.handleSelection(e);
   },
 
-  handleMouseUp = () => {
+  handleMouseUp() {
     this.isMouseDown = false;
     this.lastX = null;
     this.lastY = null;
