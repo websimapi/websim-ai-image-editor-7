@@ -38,58 +38,63 @@
       </div>
 
       <div class="image-container" id="imageContainer">
-        <div id="editorContainer">
-          <button class="fullscreen-button" onclick="Selection.toggleFullscreen()">⛶</button>
-          <div id="loadingSpinner" class="loading" style="display: none;"></div>
-          <div id="placeholderText" class="placeholder-text">Enter a prompt to generate an image or load one from your device</div>
+        <div id="loadingSpinner" class="loading" style="display: none;"></div>
+        <div id="placeholderText" class="placeholder-text">Enter a prompt to generate an image or load one from your device</div>
+        <div class="canvas-container">
           <canvas id="editCanvas"></canvas>
-          <div class="editor-controls" id="editorControls">
-            <div class="tool-group">
-              <button class="tool-button" onclick="Selection.setTool('magicWand')" id="magicWandTool" data-tooltip="Magic Wand">
-                ✨
-              </button>
-              
-              <div class="sensitivity-control" id="sensitivityControl" style="display: none;">
-                <label for="sensitivitySlider">Sensitivity:</label>
-                <input 
-                  type="range" 
-                  id="sensitivitySlider" 
-                  min="1" 
-                  max="100" 
-                  value="32"
-                  class="sensitivity-slider"
-                  title="Adjust magic wand sensitivity"
-                >
-                <span id="sensitivityValue">32</span>
-              </div>
-              
-              <button class="tool-button" onclick="Selection.fillSelection()" id="fillSelectionTool" data-tooltip="Fill Selection">
-                🎨
-              </button>
-
-              <button class="tool-button" onclick="Selection.setAlpha()" id="setAlphaTool" data-tooltip="Set Alpha">
-                ⬜
-              </button>
-
-              <button class="tool-button" onclick="Selection.setTool('fillWithImage')" id="fillWithImageTool" data-tooltip="Fill with Generated Image">
-                🖼️
-              </button>
-
-              <button class="tool-button" onclick="Selection.clearSelection()" id="clearSelectionTool" data-tooltip="Clear Selection">
-                ❌
-              </button>
-
-              <div class="color-display">
-                <div class="color-preview" id="colorPreview"></div>
-                <input type="color" id="colorPicker" class="color-picker" value="#ffffff">
-                <span class="color-value" id="colorValue">#FFFFFF</span>
-              </div>
+          <div class="zoom-controls">
+            <button class="zoom-button" id="zoomOut" title="Zoom Out">−</button>
+            <div class="zoom-level" id="zoomLevel">100%</div>
+            <button class="zoom-button" id="zoomIn" title="Zoom In">+</button>
+            <button class="zoom-button" id="zoomReset" title="Reset View">↺</button>
+          </div>
+        </div>
+        <div class="editor-controls" id="editorControls">
+          <div class="tool-group">
+            <button class="tool-button" onclick="Selection.setTool('magicWand')" id="magicWandTool" data-tooltip="Magic Wand">
+              ✨
+            </button>
+            
+            <div class="sensitivity-control" id="sensitivityControl" style="display: none;">
+              <label for="sensitivitySlider">Sensitivity:</label>
+              <input 
+                type="range" 
+                id="sensitivitySlider" 
+                min="1" 
+                max="100" 
+                value="32"
+                class="sensitivity-slider"
+                title="Adjust magic wand sensitivity"
+              >
+              <span id="sensitivityValue">32</span>
             </div>
             
-            <div class="fill-image-prompt" id="fillImagePrompt" style="display: none;">
-              <input type="text" id="selectionPromptInput" placeholder="Enter prompt for selected region...">
-              <button onclick="Selection.fillWithImage(document.getElementById('selectionPromptInput').value.trim())">Prompt Fill Image</button>
+            <button class="tool-button" onclick="Selection.fillSelection()" id="fillSelectionTool" data-tooltip="Fill Selection">
+              🎨
+            </button>
+
+            <button class="tool-button" onclick="Selection.setAlpha()" id="setAlphaTool" data-tooltip="Set Alpha">
+              ⬜
+            </button>
+
+            <button class="tool-button" onclick="Selection.setTool('fillWithImage')" id="fillWithImageTool" data-tooltip="Fill with Generated Image">
+              🖼️
+            </button>
+
+            <button class="tool-button" onclick="Selection.clearSelection()" id="clearSelectionTool" data-tooltip="Clear Selection">
+              ❌
+            </button>
+
+            <div class="color-display">
+              <div class="color-preview" id="colorPreview"></div>
+              <input type="color" id="colorPicker" class="color-picker" value="#ffffff">
+              <span class="color-value" id="colorValue">#FFFFFF</span>
             </div>
+          </div>
+          
+          <div class="fill-image-prompt" id="fillImagePrompt" style="display: none;">
+            <input type="text" id="selectionPromptInput" placeholder="Enter prompt for selected region...">
+            <button onclick="Selection.fillWithImage(document.getElementById('selectionPromptInput').value.trim())">Prompt Fill Image</button>
           </div>
         </div>
       </div>

@@ -2,109 +2,13 @@ import { Editor } from './editor.js';
 import { room } from './room.js';
 import { showNotification } from './notifications.js';
 
-class MagicWand {
-  constructor(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { willReadFrequently: true });
-    this.tolerance = 32;
-    this.imageData = null;
-    this.width = 0;
-    this.height = 0;
-    this.pixelData = null;
-  }
-
-  cacheImageData() {
-    this.imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-    this.width = this.canvas.width;
-    this.height = this.canvas.height;
-    this.pixelData = this.imageData.data;
-  }
-
-  getPixel(x, y) {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
-      return { r: 0, g: 0, b: 0, a: 0 };
-    }
-    const i = (y * this.width + x) * 4;
-    return {
-      r: this.pixelData[i],
-      g: this.pixelData[i + 1],
-      b: this.pixelData[i + 2],
-      a: this.pixelData[i + 3]
-    };
-  }
-
-  colorDifference(color1, color2) {
-    return Math.abs(color1.r - color2.r) +
-           Math.abs(color1.g - color2.g) +
-           Math.abs(color1.b - color2.b);
-  }
-
-  select(startX, startY) {
-    this.cacheImageData();
-
-    const mask = new Uint8Array(this.width * this.height);
-    const startColor = this.getPixel(startX, startY);
-    
-    const queue = new Int32Array(this.width * this.height * 2);
-    let queueLength = 2;
-    queue[0] = startX;
-    queue[1] = startY;
-    
-    const dx = [-1, 1, 0, 0];
-    const dy = [0, 0, -1, 1];
-
-    mask[startY * this.width + startX] = 1;
-
-    while (queueLength > 0) {
-      queueLength -= 2;
-      const x = queue[queueLength];
-      const y = queue[queueLength + 1];
-
-      for (let d = 0; d < 4; d++) {
-        const nx = x + dx[d];
-        const ny = y + dy[d];
-
-        if (nx >= 0 && nx < this.width && 
-            ny >= 0 && ny < this.height && 
-            !mask[ny * this.width + nx]) {
-          
-          const currentColor = this.getPixel(nx, ny);
-          const colorDiff = this.colorDifference(startColor, currentColor);
-
-          if (colorDiff <= this.tolerance * 3) { 
-            mask[ny * this.width + nx] = 1;
-            queue[queueLength] = nx;
-            queue[queueLength + 1] = ny;
-            queueLength += 2;
-          }
-        }
-      }
-    }
-
-    return mask;
-  }
-}
-
 export const Selection = {
   current: null,
   isShiftPressed: false,
   isCtrlPressed: false,
-  magicWand: null,
-  selectionStartTime: 0,
-  zoom: 1,
-  panX: 0,  
-  panY: 0,
-  isPanning: false,
-  lastMouseX: 0,
-  lastMouseY: 0,
-  selectedTool: null,
 
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
-    if (!this.magicWand) {
-      this.magicWand = new MagicWand(canvas);
-    }
-    
     const fillImagePrompt = document.getElementById('fillImagePrompt');
     const sensitivityControl = document.getElementById('sensitivityControl');
     
@@ -116,9 +20,6 @@ export const Selection = {
     }
 
     sensitivityControl.style.display = tool === 'magicWand' ? 'flex' : 'none';
-    if (tool === 'magicWand') {
-      this.magicWand.tolerance = parseInt(document.getElementById('sensitivitySlider').value);
-    }
 
     if (tool === 'fillSelection' && this.current) {
       fillImagePrompt.style.display = 'none';
@@ -132,175 +33,116 @@ export const Selection = {
       fillImagePrompt.style.display = 'none';
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
     }
-    
-    this.selectedTool = tool;
-  },
-
-  toggleFullscreen() {
-    const container = document.getElementById('editorContainer');
-    container.classList.toggle('fullscreen');
-    this.updateCanvasView();
-  },
-
-  updateCanvasView() {
-    const canvas = document.getElementById('editCanvas');
-    const container = document.getElementById('editorContainer');
-    
-    if (container.classList.contains('fullscreen')) {
-      canvas.style.transform = `scale(${this.zoom}) translate(${this.panX}px, ${this.panY}px)`;
-    } else {
-      canvas.style.transform = 'none';
-      this.zoom = 1;
-      this.panX = 0;
-      this.panY = 0;
-    }
-  },
-
-  handleZoom(event) {
-    if (event.deltaY < 0) {
-      this.zoom = Math.min(this.zoom * 1.1, 5);
-    } else {
-      this.zoom = Math.max(this.zoom / 1.1, 0.1);
-    }
-    this.updateCanvasView();
-    event.preventDefault();
-  },
-
-  startPan(event) {
-    this.isPanning = true;
-    this.lastMouseX = event.clientX;
-    this.lastMouseY = event.clientY;
-  },
-
-  handlePan(event) {
-    if (!this.isPanning) return;
-    
-    const dx = event.clientX - this.lastMouseX;
-    const dy = event.clientY - this.lastMouseY;
-    
-    this.panX += dx / this.zoom;
-    this.panY += dy / this.zoom;
-    
-    this.lastMouseX = event.clientX;
-    this.lastMouseY = event.clientY;
-    
-    this.updateCanvasView();
-  },
-
-  stopPan() {
-    this.isPanning = false;
   },
 
   handleCanvasClick(e) {
-    const now = Date.now();
-    if (now - Selection.selectionStartTime < 100) return;
-    Selection.selectionStartTime = now;
-
     const canvas = document.getElementById('editCanvas');
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    // Adjust coordinates for zoom and pan
-    const x = Math.round((e.clientX - rect.left) * scaleX / Selection.zoom - Selection.panX);
-    const y = Math.round((e.clientY - rect.top) * scaleY / Selection.zoom - Selection.panY);
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
 
-    if (!Selection.magicWand) {
-      Selection.magicWand = new MagicWand(canvas);
-    }
-
-    Selection.magicWand.tolerance = parseInt(document.getElementById('sensitivitySlider').value);
-
-    if (Selection.isCtrlPressed) {
-      // Handle deselection
-      if (Selection.current) {
-        const deselection = Selection.magicWand.select(x, y);
-        for (let i = 0; i < Selection.current.length; i++) {
-          if (deselection[i]) {
-            Selection.current[i] = 0;
-          }
-        }
-      }
-    } else if (!Selection.isShiftPressed) {
+    if (!Selection.isShiftPressed && !Selection.isCtrlPressed) {
       Selection.current = null;
     }
 
-    requestAnimationFrame(() => {
-      const newSelection = Selection.magicWand.select(x, y);
-      
-      if (Selection.isShiftPressed) {
-        if (Selection.current) {
-          for (let i = 0; i < Selection.current.length; i++) {
-            Selection.current[i] = Selection.current[i] || newSelection[i];
-          }
-        } else {
-          Selection.current = newSelection;
+    const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
+    
+    if (Selection.isShiftPressed || Selection.isCtrlPressed) {
+      if (Selection.current) {
+        for (let i = 0; i < Selection.current.length; i++) {
+          Selection.current[i] = Selection.current[i] || newSelection[i];
         }
-      } else if (!Selection.isCtrlPressed) {
+      } else {
         Selection.current = newSelection;
       }
+    } else {
+      Selection.current = newSelection;
+    }
 
-      Selection.drawOverlay();
-    });
+    Selection.drawOverlay();
+  },
+
+  magicWandSelect(imageData, startX, startY, tolerance) {
+    const width = imageData.width;
+    const height = imageData.height;
+    const pixels = imageData.data;
+    const visited = new Uint8Array(width * height);
+    const selected = new Uint8Array(width * height);
+    const startPos = (startY * width + startX) * 4;
+    const startR = pixels[startPos];
+    const startG = pixels[startPos + 1];
+    const startB = pixels[startPos + 2];
+    const stack = [[startX, startY]];
+    
+    while (stack.length) {
+      const [x, y] = stack.pop();
+      const pos = y * width + x;
+      if (x < 0 || x >= width || y < 0 || y >= height || visited[pos]) {
+        continue;
+      }
+      const pixelPos = pos * 4;
+      const r = pixels[pixelPos];
+      const g = pixels[pixelPos + 1];
+      const b = pixels[pixelPos + 2];
+      const colorDiff = Math.sqrt(Math.pow(r - startR, 2) + Math.pow(g - startG, 2) + Math.pow(b - startB, 2));
+      if (colorDiff <= tolerance) {
+        visited[pos] = 1;
+        selected[pos] = 1;
+        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+      }
+    }
+    return selected;
   },
 
   drawOverlay() {
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d');
     ctx.putImageData(Editor.originalImageData, 0, 0);
-    
     if (!this.current) return;
     
     const width = canvas.width;
     const height = canvas.height;
-    
-    const overlayCanvas = document.createElement('canvas');
-    overlayCanvas.width = width;
-    overlayCanvas.height = height;
-    const overlayCtx = overlayCanvas.getContext('2d');
-    const overlayData = overlayCtx.createImageData(width, height);
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
     
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const pos = y * width + x;
         if (this.current[pos]) {
-          const isEdge = 
-            x === 0 || x === width - 1 || y === 0 || y === height - 1 ||
-            !this.current[pos - 1] || !this.current[pos + 1] ||
-            !this.current[pos - width] || !this.current[pos + width];
-            
+          const isEdge = x > 0 && !this.current[pos - 1] || 
+                        x < width - 1 && !this.current[pos + 1] || 
+                        y > 0 && !this.current[pos - width] || 
+                        y < height - 1 && !this.current[pos + width];
           if (isEdge) {
-            const i = pos * 4;
-            overlayData.data[i] = 255;     // R
-            overlayData.data[i + 1] = 255; // G
-            overlayData.data[i + 2] = 255; // B
-            overlayData.data[i + 3] = 255; // A
+            ctx.fillStyle = 'white';
+            ctx.fillRect(x - 1, y - 1, 3, 3);
+            ctx.strokeStyle = 'black';
+            ctx.strokeRect(x - 1, y - 1, 3, 3);
           }
         }
       }
     }
-    
-    overlayCtx.putImageData(overlayData, 0, 0);
-    ctx.drawImage(overlayCanvas, 0, 0);
   },
 
   fillSelection() {
     if (!this.current) return;
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
     const color = document.getElementById('colorPicker').value;
-    const r = parseInt(color.substr(1,2), 16);
-    const g = parseInt(color.substr(3,2), 16);
-    const b = parseInt(color.substr(5,2), 16);
+    const r = parseInt(color.substr(1, 2), 16);
+    const g = parseInt(color.substr(3, 2), 16);
+    const b = parseInt(color.substr(5, 2), 16);
     
     for (let i = 0; i < this.current.length; i++) {
       if (this.current[i]) {
-        const pos = i * 4;
-        pixels[pos] = r;
-        pixels[pos + 1] = g;
-        pixels[pos + 2] = b;
+        const pixelPos = i * 4;
+        pixels[pixelPos] = r;
+        pixels[pixelPos + 1] = g;
+        pixels[pixelPos + 2] = b;
       }
     }
     
@@ -311,13 +153,14 @@ export const Selection = {
   setAlpha() {
     if (!this.current) return;
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
     
     for (let i = 0; i < this.current.length; i++) {
       if (this.current[i]) {
-        pixels[i * 4 + 3] = 0;
+        const pixelPos = i * 4;
+        pixels[pixelPos + 3] = 0;
       }
     }
     
@@ -328,7 +171,7 @@ export const Selection = {
   clearSelection() {
     this.current = null;
     const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d');
     if (Editor.originalImageData) {
       ctx.putImageData(Editor.originalImageData, 0, 0);
     }
@@ -486,27 +329,4 @@ export const Selection = {
 
 document.getElementById('sensitivitySlider')?.addEventListener('input', (e) => {
   document.getElementById('sensitivityValue').textContent = e.target.value;
-  if (Selection.magicWand) {
-    Selection.magicWand.tolerance = parseInt(e.target.value);
-  }
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  const canvas = document.getElementById('editCanvas');
-  const container = document.getElementById('editorContainer');
-  
-  container.addEventListener('wheel', Selection.handleZoom.bind(Selection));
-  canvas.addEventListener('mousedown', Selection.startPan.bind(Selection));
-  document.addEventListener('mousemove', Selection.handlePan.bind(Selection));
-  document.addEventListener('mouseup', Selection.stopPan.bind(Selection));
-  
-  // Add zoom buttons
-  const zoomControls = document.createElement('div');
-  zoomControls.className = 'zoom-controls';
-  zoomControls.innerHTML = `
-    <button onclick="Selection.zoom *= 1.1; Selection.updateCanvasView()">🔍+</button>
-    <button onclick="Selection.zoom = 1; Selection.panX = 0; Selection.panY = 0; Selection.updateCanvasView()">Reset</button>
-    <button onclick="Selection.zoom /= 1.1; Selection.updateCanvasView()">🔍-</button>
-  `;
-  container.appendChild(zoomControls);
 });
