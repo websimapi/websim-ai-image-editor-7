@@ -175,7 +175,7 @@ export const Selection = {
     Editor.originalImageData = imageData;
   },
 
-  async fillWithImage(prompt) {
+  fillWithImage(prompt) {
     if (!this.current || !Editor.currentImage) return;
     
     const prefixSelect = document.getElementById('prefixPrompt');
@@ -254,6 +254,7 @@ export const Selection = {
       ctx.putImageData(imageData, 0, 0);
       Editor.originalImageData = imageData;
 
+      // Handle gallery updates
       let sourceImage;
       if (Editor.currentImage.dataset.galleryId) {
         sourceImage = Editor.galleryImages.find(img => img.id === Editor.currentImage.dataset.galleryId);

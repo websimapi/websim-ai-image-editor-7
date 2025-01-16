@@ -107,6 +107,11 @@ export const Gallery = {
         </div>
         ${img.username === room.party.client.username ? `
           <div class="gallery-item-controls">
+            <button class="edit-button" onclick="Gallery.editTitle('${img.id}')" title="Edit Title">
+              <svg viewBox="0 0 24 24">
+                <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+              </svg>
+            </button>
             <button class="delete-button" onclick="Gallery.deleteImage('${img.id}')" title="Delete Image">
               <svg viewBox="0 0 24 24">
                 <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
@@ -126,13 +131,13 @@ export const Gallery = {
     if (!image.promptHistory || !image.promptHistory.length) {
       return `
         <div class="prompt-history">
-          <div class="prompt-history-header" onclick="Gallery.togglePromptHistory(this)">
+          <div class="prompt-history-header">
             <span>Prompt History (1)</span>
             <svg class="expand-icon" width="12" height="12" viewBox="0 0 12 12">
-              <path fill="currentColor" d="M6 8L2 4h8z"/>
+              <path fill="currentColor" d="M2 4h8L6 8 2 4z"/>
             </svg>
           </div>
-          <div class="prompt-history-entries" style="display: block;">
+          <div class="prompt-history-entries">
             <div class="prompt-history-entry">
               <div>Original prompt: ${image.prompt}</div>
               <div class="by-user">by <span class="username-link" onclick="Gallery.showUserGallery('${image.username}')">${image.username}</span></div>
@@ -145,10 +150,10 @@ export const Gallery = {
 
     return `
       <div class="prompt-history">
-        <div class="prompt-history-header" onclick="Gallery.togglePromptHistory(this)">
+        <div class="prompt-history-header">
           <span>Prompt History (${image.promptHistory.length})</span>
           <svg class="expand-icon" width="12" height="12" viewBox="0 0 12 12">
-            <path fill="currentColor" d="M6 8L2 4h8z"/>
+            <path fill="currentColor" d="M2 4h8L6 8 2 4z"/>
           </svg>
         </div>
         <div class="prompt-history-entries">
@@ -196,14 +201,8 @@ export const Gallery = {
   },
 
   togglePromptHistory(header) {
-    const historyDiv = header.parentElement;
+    const historyDiv = header.closest('.prompt-history');
     historyDiv.classList.toggle('expanded');
-    const entriesDiv = historyDiv.querySelector('.prompt-history-entries');
-    if (historyDiv.classList.contains('expanded')) {
-      entriesDiv.style.display = 'block';
-    } else {
-      entriesDiv.style.display = 'none';
-    }
   },
 
   showUserGallery(username) {
