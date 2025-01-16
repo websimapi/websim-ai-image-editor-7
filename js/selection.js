@@ -302,6 +302,18 @@ export const Selection = {
     Editor.originalImageData = imageData;
   },
 
+  async setAlpha() {
+    await this.processSelection('alpha');
+  },
+
+  fillSelection() {
+    this.processSelection('fill');
+  },
+
+  async fillWithImage(prompt) {
+    await this.processSelection('image', { prompt });
+  },
+
   setupSensitivitySlider() {
     const slider = document.getElementById('sensitivitySlider');
     const value = document.getElementById('sensitivityValue');
