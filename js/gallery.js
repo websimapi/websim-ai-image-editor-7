@@ -5,7 +5,7 @@ export const Gallery = {
   images: [],
   currentTab: 'recent',
   currentPage: 1,
-  itemsPerPage: 10,
+  itemsPerPage: 10, 
   currentEditId: null,
   currentSearch: '',
   currentUserFilter: null,
@@ -98,7 +98,7 @@ export const Gallery = {
           <div class="prompt-history">
             ${this.renderPromptHistory(img)}
           </div>
-          <div>by ${img.username}</div>
+          <div>by <span class="username-link" onclick="Gallery.showUserGallery('${img.username}')">${img.username}</span></div>
           <div>${new Date(img.created_at).toLocaleDateString()}</div>
         </div>
         <div class="stats">
@@ -107,11 +107,6 @@ export const Gallery = {
         </div>
         ${img.username === room.party.client.username ? `
           <div class="gallery-item-controls">
-            <button class="edit-button" onclick="Gallery.editImage('${img.id}')" title="Edit Image">
-              <svg viewBox="0 0 24 24">
-                <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
-              </svg>
-            </button>
             <button class="delete-button" onclick="Gallery.deleteImage('${img.id}')" title="Delete Image">
               <svg viewBox="0 0 24 24">
                 <path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
@@ -175,6 +170,18 @@ export const Gallery = {
     `;
   },
 
+  async loadImage(id) {
+    const image = this.images.find(img => img.id === id);
+    if (!image) return;
+    
+    await room.collection('gallery_images').update(id, {
+      views: (image.views || 0) + 1,
+      uses: (image.uses || 0) + 1
+    });
+    
+    Editor.loadGalleryImage(image);
+  },
+
   showTab(tab) {
     this.currentTab = tab;
     document.querySelectorAll('.gallery-tab').forEach(el => {
@@ -185,23 +192,6 @@ export const Gallery = {
 
   changePage(delta) {
     this.currentPage += delta;
-    this.render();
-  },
-
-  filterGallery() {
-    const searchInput = document.getElementById('gallerySearch');
-    this.currentSearch = searchInput.value.trim();
-    this.render();
-  },
-
-  showUserGallery(username) {
-    this.currentUserFilter = username;
-    this.currentPage = 1;
-    this.render();
-  },
-
-  clearUserFilter() {
-    this.currentUserFilter = null;
     this.render();
   },
 
@@ -216,34 +206,63 @@ export const Gallery = {
     }
   },
 
-  async loadImage(id) {
+  showUserGallery(username) {
+    this.currentUserFilter = username;
+    this.currentPage = 1;  // Reset to first page
+    this.render();
+  },
+
+  clearUserFilter() {
+    this.currentUserFilter = null;
+    this.render();
+  },
+
+  filterGallery() {
+    const searchInput = document.getElementById('gallerySearch');
+    this.currentSearch = searchInput.value.trim();
+    this.render();
+  },
+
+  async deleteImage(id) {
+    if (!confirm('Are you sure you want to delete this image?')) return;
+    await room.collection('gallery_images').delete(id);
+    this.render();
+  },
+
+  editTitle(id) {
     const image = this.images.find(img => img.id === id);
     if (!image) return;
+    
+    this.currentEditId = id;
+    const dialog = document.getElementById('editTitleDialog');
+    const input = document.getElementById('editTitleInput');
+    input.value = image.title || image.prompt;
+    dialog.style.display = 'block';
+  },
 
-    await room.collection('gallery_images').update(id, {
-      views: (image.views || 0) + 1,
-      uses: (image.uses || 0) + 1
+  async saveTitleEdit() {
+    if (!this.currentEditId) return;
+    
+    const input = document.getElementById('editTitleInput');
+    const newTitle = input.value.trim();
+    
+    if (!newTitle) {
+      alert('Please enter a title');
+      return;
+    }
+    
+    await room.collection('gallery_images').update(this.currentEditId, {
+      title: newTitle
     });
+    
+    this.cancelTitleEdit();
+  },
 
-    const imageContainer = document.getElementById('imageContainer');
-    const existingImages = imageContainer.querySelectorAll('img');
-    existingImages.forEach(img => img.remove());
-
-    const generatedImage = document.createElement('img');
-    generatedImage.id = `generatedImage_${Date.now()}`;
-    generatedImage.className = 'generated-image';
-    generatedImage.style.display = 'none';
-    generatedImage.crossOrigin = 'anonymous';
-    generatedImage.src = image.imageUrl;
-    generatedImage.alt = image.prompt;
-
-    imageContainer.appendChild(generatedImage);
-    Editor.currentImage = generatedImage;
-    document.getElementById('saveButton').style.display = 'block';
-    document.getElementById('addGalleryButton').style.display = 'block';
-
-    generatedImage.onload = function() {
-      Editor.setupImageEditor();
-    };
+  cancelTitleEdit() {
+    this.currentEditId = null;
+    const dialog = document.getElementById('editTitleDialog');
+    const input = document.getElementById('editTitleInput');
+    input.value = '';
+    dialog.style.display = 'none';
   }
 };

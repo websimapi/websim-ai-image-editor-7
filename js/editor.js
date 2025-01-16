@@ -217,6 +217,29 @@ export const Editor = {
     }
   },
 
+  loadGalleryImage(image) {
+    const imageContainer = document.getElementById('imageContainer');
+    const existingImages = imageContainer.querySelectorAll('img');
+    existingImages.forEach(img => img.remove());
+  
+    const generatedImage = document.createElement('img');
+    generatedImage.id = `generatedImage_${Date.now()}`;
+    generatedImage.className = 'generated-image';
+    generatedImage.style.display = 'none';
+    generatedImage.crossOrigin = 'anonymous';
+    generatedImage.src = image.imageUrl;
+    generatedImage.alt = image.prompt;
+  
+    imageContainer.appendChild(generatedImage);
+    this.currentImage = generatedImage;
+    document.getElementById('saveButton').style.display = 'block';
+    document.getElementById('addGalleryButton').style.display = 'block';
+  
+    generatedImage.onload = () => {
+      this.setupImageEditor();
+    };
+  },
+
   handleImageUpload(event) {
     const file = event.target.files[0];
     if (file) {
