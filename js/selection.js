@@ -7,9 +7,8 @@ export const Selection = {
   isShiftPressed: false,
   isCtrlPressed: false,
   isDragging: false,
-  startX: null,
-  startY: null,
-  dragSelection: null,
+  lastX: null,
+  lastY: null,
 
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
@@ -38,159 +37,48 @@ export const Selection = {
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
     }
 
-    // Set up drag selection events when magicWand is active
+    // Add mouse event listeners for drag functionality
     if (tool === 'magicWand') {
-      canvas.addEventListener('mousedown', this.startDragSelection.bind(this));
-      canvas.addEventListener('mousemove', this.updateDragSelection.bind(this));
-      canvas.addEventListener('mouseup', this.endDragSelection.bind(this));
+      canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+      canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+      canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+      canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
     } else {
-      canvas.removeEventListener('mousedown', this.startDragSelection.bind(this));
-      canvas.removeEventListener('mousemove', this.updateDragSelection.bind(this));
-      canvas.removeEventListener('mouseup', this.endDragSelection.bind(this));
+      canvas.removeEventListener('mousedown', this.handleMouseDown.bind(this));
+      canvas.removeEventListener('mousemove', this.handleMouseMove.bind(this));
+      canvas.removeEventListener('mouseup', this.handleMouseUp.bind(this));
+      canvas.removeEventListener('mouseleave', this.handleMouseUp.bind(this));
     }
   },
 
-  startDragSelection(e) {
-    const canvas = document.getElementById('editCanvas');
-    const rect = canvas.getBoundingClientRect();
+  handleMouseDown(e) {
     this.isDragging = true;
-    this.startX = (e.clientX - rect.left) * (canvas.width / rect.width);
-    this.startY = (e.clientY - rect.top) * (canvas.height / rect.height);
-    this.dragSelection = null;
+    const canvas = document.getElementById('editCanvas');
+    const rect = canvas.getBoundingClientRect();
+    this.lastX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    this.lastY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    this.handleCanvasClick(e);
   },
 
-  updateDragSelection(e) {
+  handleMouseMove(e) {
     if (!this.isDragging) return;
     
     const canvas = document.getElementById('editCanvas');
     const rect = canvas.getBoundingClientRect();
-    const currentX = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const currentY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     
-    // Create selection based on drag area
-    const width = canvas.width;
-    const height = canvas.height;
-    this.dragSelection = new Uint8Array(width * height);
-    
-    const minX = Math.max(0, Math.min(this.startX, currentX));
-    const maxX = Math.min(width, Math.max(this.startX, currentX));
-    const minY = Math.max(0, Math.min(this.startY, currentY));
-    const maxY = Math.min(height, Math.max(this.startY, currentY));
-    
-    for (let y = Math.floor(minY); y < Math.ceil(maxY); y++) {
-      for (let x = Math.floor(minX); x < Math.ceil(maxX); x++) {
-        this.dragSelection[y * width + x] = 1;
-      }
-    }
-    
-    this.drawDragOverlay();
-  },
-
-  endDragSelection(e) {
-    if (!this.isDragging) return;
-    
-    this.isDragging = false;
-    if (!this.dragSelection) {
+    // Only process if mouse has moved enough to avoid performance issues
+    const distance = Math.sqrt(Math.pow(x - this.lastX, 2) + Math.pow(y - this.lastY, 2));
+    if (distance > 5) {
+      this.lastX = x;
+      this.lastY = y;
       this.handleCanvasClick(e);
-      return;
     }
-    
-    if (!this.isShiftPressed && !this.isCtrlPressed) {
-      this.current = null;
-    }
-    
-    if (this.current === null) {
-      this.current = this.dragSelection;
-    } else {
-      const newSelection = new Uint8Array(this.current.length);
-      for (let i = 0; i < this.current.length; i++) {
-        if (this.isCtrlPressed) {
-          // Anti-selection with CTRL
-          newSelection[i] = this.current[i] && !this.dragSelection[i];
-        } else {
-          // Add to selection
-          newSelection[i] = this.current[i] || this.dragSelection[i];
-        }
-      }
-      this.current = newSelection;
-    }
-    
-    this.dragSelection = null;
-    this.drawOverlay();
   },
 
-  drawDragOverlay() {
-    if (!this.dragSelection) return;
-    
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.putImageData(Editor.originalImageData, 0, 0);
-    
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // Draw current selection if it exists
-    if (this.current) {
-      this.drawSelectionOutline(this.current, 'rgba(255, 255, 255, 0.3)');
-    }
-    
-    // Draw drag selection
-    this.drawSelectionOutline(this.dragSelection, this.isCtrlPressed ? 
-      'rgba(255, 0, 0, 0.3)' : // Red for anti-selection
-      'rgba(0, 255, 0, 0.3)'   // Green for normal selection
-    );
-  },
-
-  drawSelectionOutline(selection, color) {
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    ctx.strokeStyle = 'white';
-    ctx.lineWidth = 1;
-    
-    // Create a temporary canvas for the selection overlay
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = width;
-    tempCanvas.height = height;
-    const tempCtx = tempCanvas.getContext('2d');
-    
-    // Draw selection with semi-transparent color
-    const imgData = tempCtx.createImageData(width, height);
-    for (let i = 0; i < selection.length; i++) {
-      if (selection[i]) {
-        const pos = i * 4;
-        const [r, g, b, a] = color.match(/\d+/g).map(Number);
-        imgData.data[pos] = r;
-        imgData.data[pos + 1] = g;
-        imgData.data[pos + 2] = b;
-        imgData.data[pos + 3] = Math.floor(a * 255);
-      }
-    }
-    tempCtx.putImageData(imgData, 0, 0);
-    
-    // Draw the selection overlay
-    ctx.drawImage(tempCanvas, 0, 0);
-    
-    // Draw outline
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const pos = y * width + x;
-        if (selection[pos]) {
-          const isEdge = x > 0 && !selection[pos - 1] || 
-                        x < width - 1 && !selection[pos + 1] || 
-                        y > 0 && !selection[pos - width] || 
-                        y < height - 1 && !selection[pos + width];
-          if (isEdge) {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(x - 1, y - 1, 3, 3);
-            ctx.strokeStyle = 'black';
-            ctx.strokeRect(x - 1, y - 1, 3, 3);
-          }
-        }
-      }
-    }
+  handleMouseUp() {
+    this.isDragging = false;
   },
 
   handleCanvasClick(e) {
@@ -200,24 +88,24 @@ export const Selection = {
     const y = (e.clientY - rect.top) * (canvas.height / rect.height);
     const sensitivity = parseInt(document.getElementById('sensitivitySlider').value);
 
-    if (!this.isShiftPressed && !this.isCtrlPressed) {
-      this.current = null;
+    if (!this.isShiftPressed && !this.isCtrlPressed && !this.isDragging) {
+      Selection.current = null;
     }
 
     const imageData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-    const newSelection = this.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
+    const newSelection = Selection.magicWandSelect(imageData, Math.round(x), Math.round(y), sensitivity);
     
     if (this.isCtrlPressed) {
-      // Anti-selection with CTRL
+      // CTRL+click to deselect
       if (this.current) {
         for (let i = 0; i < this.current.length; i++) {
-          this.current[i] = this.current[i] && !newSelection[i];
+          if (newSelection[i]) {
+            this.current[i] = 0;
+          }
         }
-      } else {
-        this.current = newSelection;
       }
-    } else if (this.isShiftPressed) {
-      // Add to selection with Shift
+    } else if (this.isShiftPressed || this.isDragging) {
+      // Shift+click or dragging to add to selection
       if (this.current) {
         for (let i = 0; i < this.current.length; i++) {
           this.current[i] = this.current[i] || newSelection[i];
@@ -226,6 +114,7 @@ export const Selection = {
         this.current = newSelection;
       }
     } else {
+      // Normal click creates new selection
       this.current = newSelection;
     }
 
