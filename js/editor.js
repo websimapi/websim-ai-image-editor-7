@@ -1,7 +1,6 @@
 import { room } from './room.js';
 import { Selection } from './selection.js';
 import { Gallery } from './gallery.js';
-import { LayerManager } from './layers.js';
 
 export const Editor = {
   currentImage: null,
@@ -125,15 +124,8 @@ export const Editor = {
     if (this.currentImage) {
       canvas.width = this.currentImage.naturalWidth;
       canvas.height = this.currentImage.naturalHeight;
-      
-      // Create base layer
-      LayerManager.createLayer('base', {
-        imageData: ctx.getImageData(0, 0, canvas.width, canvas.height),
-        originalImage: this.currentImage.src
-      });
-      
       ctx.drawImage(this.currentImage, 0, 0);
-      this.renderLayers();
+      this.originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       this.currentImage.style.display = 'none';
       canvas.style.display = 'block';
       editorControls.style.display = 'flex';
@@ -182,55 +174,6 @@ export const Editor = {
     document.body.appendChild(generatedImage);
   },
 
-  renderLayers() {
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    LayerManager.layers.forEach(layer => {
-      if (!layer.visible) return;
-
-      ctx.globalAlpha = layer.opacity;
-      
-      switch (layer.type) {
-        case 'base':
-          ctx.putImageData(layer.data.imageData, 0, 0);
-          break;
-        case 'selection':
-          this.renderSelectionLayer(ctx, layer);
-          break;
-        case 'fill':
-          ctx.putImageData(layer.data.imageData, 0, 0);
-          break;
-        case 'color':
-          this.renderColorLayer(ctx, layer);
-          break;
-      }
-    });
-    
-    ctx.globalAlpha = 1;
-  },
-
-  renderSelectionLayer(ctx, layer) {
-    // Render selection overlay
-    if (layer.data.selection) {
-      ctx.fillStyle = `rgba(${layer.data.color.r}, ${layer.data.color.g}, ${layer.data.color.b}, 0.5)`;
-      for (let i = 0; i < layer.data.selection.length; i++) {
-        if (layer.data.selection[i]) {
-          const x = i % ctx.canvas.width;
-          const y = Math.floor(i / ctx.canvas.width);
-          ctx.fillRect(x, y, 1, 1);
-        }
-      }
-    }
-  },
-
-  renderColorLayer(ctx, layer) {
-    const { r, g, b } = layer.data.color;
-    ctx.fillStyle = `rgb(${r},${g},${b})`;
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  },
-
   resetImage() {
     const canvas = document.getElementById('editCanvas');
     const ctx = canvas.getContext('2d');
@@ -258,15 +201,54 @@ export const Editor = {
         img.imageUrl === this.currentImage.src
       );
       
+      let promptHistory = [];
+      
       if (sourceImage) {
         await room.collection('gallery_images').update(sourceImage.id, {
           uses: (sourceImage.uses || 0) + 1,
           views: (sourceImage.views || 0) + 1
         });
+        
+        // Get existing prompt history if any
+        promptHistory = [...(sourceImage.promptHistory || [{
+          prompt: sourceImage.prompt,
+          timestamp: sourceImage.created_at,
+          username: sourceImage.username
+        }])];
       }
       
-      // Rest of gallery addition logic remains the same
-      // ...
+      // Add the new edit to prompt history
+      promptHistory.push({
+        prompt: fullPrompt,
+        timestamp: new Date().toISOString(),
+        username: room.party.client.username,
+        type: 'gallery-add'
+      });
+
+      // Convert canvas to blob
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const file = new File([blob], 'gallery-image.png', { type: 'image/png' });
+      
+      // Upload image
+      const imageUrl = await websim.upload(file);
+      
+      // Create new gallery entry
+      const galleryEntry = await room.collection('gallery_images').create({
+        prompt: fullPrompt,
+        title: fullPrompt,
+        imageUrl: imageUrl,
+        views: 0,
+        uses: 0,
+        modified: true,
+        promptHistory: promptHistory,
+        sourceImageId: sourceImage ? sourceImage.id : null
+      });
+
+      // Update current image reference
+      this.currentImage.src = imageUrl;
+      this.currentImage.dataset.galleryId = galleryEntry.id;
+      
+      alert('Image successfully added to gallery!');
       
     } catch (error) {
       console.error('Error adding to gallery:', error);
@@ -311,27 +293,5 @@ export const Editor = {
       };
       reader.readAsDataURL(file);
     }
-  },
-
-  flattenLayers() {
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
-    // Create new base layer with flattened result
-    LayerManager.layers = [{
-      id: Date.now().toString(),
-      type: 'base',
-      data: { imageData },
-      visible: true,
-      opacity: 1,
-      name: 'Flattened Image',
-      createdAt: new Date().toISOString(),
-      editHistory: []
-    }];
-    
-    LayerManager.activeLayerId = LayerManager.layers[0].id;
-    LayerManager.renderLayerUI();
-    this.renderLayers();
   }
 };
