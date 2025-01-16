@@ -10,6 +10,14 @@ export const Selection = {
   lastX: null,
   lastY: null,
 
+  init() {
+    const canvas = document.getElementById('editCanvas');
+    canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+    canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+    canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
+  },
+
   setTool(tool) {
     const canvas = document.getElementById('editCanvas');
     const fillImagePrompt = document.getElementById('fillImagePrompt');
@@ -35,19 +43,6 @@ export const Selection = {
     } else {
       fillImagePrompt.style.display = 'none';
       canvas.style.cursor = tool === 'magicWand' ? 'crosshair' : 'default';
-    }
-
-    // Add mouse event listeners for drag functionality
-    if (tool === 'magicWand') {
-      canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
-      canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
-      canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
-      canvas.addEventListener('mouseleave', this.handleMouseUp.bind(this));
-    } else {
-      canvas.removeEventListener('mousedown', this.handleMouseDown.bind(this));
-      canvas.removeEventListener('mousemove', this.handleMouseMove.bind(this));
-      canvas.removeEventListener('mouseup', this.handleMouseUp.bind(this));
-      canvas.removeEventListener('mouseleave', this.handleMouseUp.bind(this));
     }
   },
 
