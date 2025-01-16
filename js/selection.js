@@ -62,57 +62,31 @@ export const Selection = {
       return;
     }
 
-    const canvas = document.getElementById('editCanvas');
-    const loadingSpinner = document.getElementById('loadingSpinner');
-    
+    const prefixSelect = document.getElementById('prefixPrompt');
+    const suffixSelect = document.getElementById('suffixPrompt');
+    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
+
     try {
-      loadingSpinner.style.display = 'block';
-
-      // Get prompt with prefix/suffix
-      const prefixSelect = document.getElementById('prefixPrompt');
-      const suffixSelect = document.getElementById('suffixPrompt');
-      const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
-
-      // First try to generate the image through websim API
-      let imageUrl;
-      try {
-        imageUrl = await websim.generateImage(fullPrompt); // Use the actual generation API
-      } catch (error) {
-        console.error('Failed to generate image:', error);
-        showNotification('Failed to generate image. Please try again.', 'error');
-        return;
-      }
-
-      // Create and load the image
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      
-      const imageLoadPromise = new Promise((resolve, reject) => {
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('Failed to load generated image'));
-      });
-
-      img.src = imageUrl;
-      
-      // Wait for image to load
-      const generatedImage = await imageLoadPromise;
-      
-      // Apply the image to selection
+      const canvas = document.getElementById('editCanvas');
+      const generatedImage = await this.generateImage(fullPrompt);
       await this.applyGeneratedImage(generatedImage, canvas);
-      
-      // Save to gallery
       await Editor.saveToGallery(canvas, fullPrompt);
       
-      // Clean up UI
       document.getElementById('fillImagePrompt').style.display = 'none';
-      loadingSpinner.style.display = 'none';
-      showNotification('Region filled successfully', 'success');
-      
     } catch (error) {
       console.error('Error in image fill:', error);
       showNotification('Failed to fill image. Please try again.', 'error');
-      loadingSpinner.style.display = 'none';
     }
+  },
+
+  generateImage(prompt) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = prompt;
+    });
   },
 
   hexToRgb(hex) {
@@ -328,6 +302,42 @@ export const Selection = {
     Editor.originalImageData = imageData;
   },
 
+  async fillWithImage(prompt) {
+    if (!prompt || !this.current) return;
+    
+    const prefixSelect = document.getElementById('prefixPrompt');
+    const suffixSelect = document.getElementById('suffixPrompt');
+    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
+
+    try {
+      const loadingSpinner = document.getElementById('loadingSpinner');
+      loadingSpinner.style.display = 'block';
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      const imagePromise = new Promise((resolve, reject) => {
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = fullPrompt;
+      });
+
+      const generatedImage = await imagePromise;
+      const canvas = document.getElementById('editCanvas');
+      await this.applyGeneratedImage(generatedImage, canvas);
+      
+      loadingSpinner.style.display = 'none';
+      document.getElementById('fillImagePrompt').style.display = 'none';
+      
+      // Save the modified image to gallery
+      await Editor.saveToGallery(canvas, fullPrompt);
+    } catch (error) {
+      console.error('Error generating image:', error);
+      const loadingSpinner = document.getElementById('loadingSpinner');
+      loadingSpinner.style.display = 'none';
+    }
+  },
+
   async setAlpha() {
     await this.processSelection('alpha');
   },
@@ -336,8 +346,27 @@ export const Selection = {
     this.processSelection('fill');
   },
 
-  async fillWithImage(prompt) {
-    await this.processSelection('image', { prompt });
+  async fillWithGeneratedImage(prompt) {
+    if (!prompt) {
+      showNotification('Please enter a prompt for the selected region', 'error');
+      return;
+    }
+
+    const prefixSelect = document.getElementById('prefixPrompt');
+    const suffixSelect = document.getElementById('suffixPrompt');
+    const fullPrompt = `${prefixSelect.value}${prompt}${suffixSelect.value}`;
+
+    try {
+      const canvas = document.getElementById('editCanvas');
+      const generatedImage = await this.generateImage(fullPrompt);
+      await this.applyGeneratedImage(generatedImage, canvas);
+      await Editor.saveToGallery(canvas, fullPrompt);
+      
+      document.getElementById('fillImagePrompt').style.display = 'none';
+    } catch (error) {
+      console.error('Error in image fill:', error);
+      showNotification('Failed to fill image. Please try again.', 'error');
+    }
   },
 
   setupSensitivitySlider() {
