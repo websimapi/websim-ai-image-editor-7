@@ -163,6 +163,13 @@ export const Selection = {
     Editor.originalImageData = imageData;
   },
 
+  clearSelection() {
+    this.current = null;
+    const canvas = document.getElementById('editCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.putImageData(Editor.originalImageData, 0, 0);
+  },
+
   fillWithImage(prompt) {
     if (!this.current || !Editor.currentImage) return;
     
@@ -302,12 +309,5 @@ export const Selection = {
     };
 
     document.body.appendChild(generatedImage);
-  },
-
-  clear() {
-    this.current = null;
-    const canvas = document.getElementById('editCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.putImageData(Editor.originalImageData, 0, 0);
   }
 };
